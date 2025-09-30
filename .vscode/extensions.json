@@ -1,0 +1,18 @@
+{
+  "recommendations": [
+    "ms-vscode.vscode-typescript-next",
+    "msjsdiag.vscode-react-native",
+    "dsznajder.es7-react-js-snippets",
+    "bradlc.vscode-tailwindcss",
+    "esbenp.prettier-vscode",
+    "dbaeumer.vscode-eslint",
+    "formulahendry.auto-rename-tag",
+    "ms-vscode.vscode-json",
+    "eamodio.gitlens",
+    "formulahendry.code-runner",
+    "christian-kohler.path-intellisense",
+    "christian-kohler.npm-intellisense",
+    "ms-vscode.vscode-typescript-next",
+    "bradlc.vscode-tailwindcss"
+  ]
+}
