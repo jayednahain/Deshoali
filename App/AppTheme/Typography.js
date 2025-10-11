@@ -9,11 +9,13 @@ const createTypography = style => {
   );
 };
 
-export const H1 = createTypography(TextStyle.h1);
-export const H2 = createTypography(TextStyle.h2);
-export const H3 = createTypography(TextStyle.h3);
-export const H4 = createTypography(TextStyle.h4);
-export const H5 = createTypography(TextStyle.h5);
-export const H6 = createTypography(TextStyle.h6);
-export const TextPrimary = createTypography(TextStyle.textPrimary);
-export const TextSecondary = createTypography(TextStyle.textSecondary);
+const H1 = createTypography(TextStyle.h1);
+const H2 = createTypography(TextStyle.h2);
+const H3 = createTypography(TextStyle.h3);
+const H4 = createTypography(TextStyle.h4);
+const H5 = createTypography(TextStyle.h5);
+const H6 = createTypography(TextStyle.h6);
+const TextPrimary = createTypography(TextStyle.textPrimary);
+const TextSecondary = createTypography(TextStyle.textSecondary);
+
+export { H1, H2, H3, H4, H5, H6, TextPrimary, TextSecondary };

@@ -1,19 +1,17 @@
 import { PixelRatio } from 'react-native';
-import AppStore from './../ReduxStore/store';
+import { useSelector } from 'react-redux';
 
-const UtilityFunctions = {
-  getFontSizeWithScale(fontSize) {
+export const useUtilityFunctions = () => {
+  const language = useSelector(state => state.appConfig.language);
+
+  const getFontSizeWithScale = fontSize => {
     var fontScale = PixelRatio.getFontScale();
     var updatedFontSize = fontSize * fontScale;
     return updatedFontSize;
-  },
+  };
 
-  getNumbersFromString(val) {
+  const getNumbersFromString = val => {
     if (typeof val === 'undefined' || val == null || val == 'null') return;
-    const state = AppStore.getState();
-    const language = state.appConfig.language;
-
-    // var lan = useSelector((state) => state.appConfig.language);
     let str = val.toString();
     if (language === 'bng') {
       var mapObj = {
@@ -33,7 +31,11 @@ const UtilityFunctions = {
       });
     }
     return str;
-  },
-};
+  };
 
-export { UtilityFunctions };
+  return {
+    getFontSizeWithScale,
+    getNumbersFromString,
+    language,
+  };
+};

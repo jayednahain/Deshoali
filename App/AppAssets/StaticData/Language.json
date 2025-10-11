@@ -1,0 +1,14 @@
+{
+  "video_list_title": {
+    "english": "Video List",
+    "bangla": "ভিডিও তালিকা"
+  },
+  "downloaded": {
+    "english": "Downloaded",
+    "bangla": "ডাউনলোড হয়েছে"
+  },
+  "not_downloaded": {
+    "english": "Not Downloaded",
+    "bangla": "ডাউনলোড হয়নি"
+  }
+}

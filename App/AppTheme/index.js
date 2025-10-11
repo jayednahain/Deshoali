@@ -1,4 +1,4 @@
-import { ThemeLightColors } from './Colors';
+import { ThemeColors } from './Colors';
 import {
   H1,
   H2,
@@ -10,4 +10,4 @@ import {
   TextSecondary,
 } from './Typography';
 
-export { H1, H2, H3, H4, H5, H6, TextPrimary, TextSecondary, ThemeLightColors };
+export { H1, H2, H3, H4, H5, H6, TextPrimary, TextSecondary, ThemeColors };

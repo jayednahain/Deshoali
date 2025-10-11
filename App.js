@@ -1,6 +1,8 @@
 import React, { useEffect } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
 import BootSplash from 'react-native-bootsplash';
+import { Provider } from 'react-redux';
+import AppNavigation from './App/AppNavigation/CustomNavigation';
+import AppStore from './App/ReduxStore/store';
 
 export default function App() {
   useEffect(() => {
@@ -13,27 +15,8 @@ export default function App() {
   }, []);
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.text}>Hello Deshoali!</Text>
-      <Text style={styles.subtitle}>Welcome to your app!</Text>
-    </View>
+    <Provider store={AppStore}>
+      <AppNavigation />
+    </Provider>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-  },
-  text: {
-    fontSize: 24,
-    color: '#000000',
-    marginBottom: 10,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#666666',
-  },
-});
