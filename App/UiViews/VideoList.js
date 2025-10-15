@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+import {
+  FlatList,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { ThemeColors } from '../AppTheme';
 import CardVideoListItem from '../Components/Card/CardVideoListItem';
@@ -7,6 +13,7 @@ import { loadAppConfigThunk } from '../Features/Config/appConfigSlice';
 import {
   fetchVideosThunk,
   loadLocalVideosThunk,
+  resetVideosState,
   setVideosWithStatus,
   startAutoDownloadThunk,
 } from '../Features/Videos/VideosSlice';
@@ -42,6 +49,9 @@ export default function VideoList() {
   // State for initialization tracking
   const [isInitialized, setIsInitialized] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // State to track if merging has been completed for current data
+  const [lastMergeKey, setLastMergeKey] = useState('');
 
   // App status effect - log when app becomes active
   useEffect(() => {
@@ -81,23 +91,54 @@ export default function VideoList() {
     }
   }, [dispatch, isInitialized]);
 
-  // Fetch API videos when online and initialized
+  // Fetch API videos when online and initialized (but don't retry if there's an error)
   useEffect(() => {
-    if (isOnline && isInitialized && !isLoading && videos.length === 0) {
+    if (
+      isOnline &&
+      isInitialized &&
+      !isLoading &&
+      videos.length === 0 &&
+      !isError
+    ) {
       console.log('[VideoList] Fetching videos from API...');
       dispatch(fetchVideosThunk());
+    } else if (isError) {
+      console.log(
+        '[VideoList] Skipping API call due to previous error:',
+        errorMessage,
+      );
     }
-  }, [isOnline, isInitialized, dispatch, isLoading, videos.length]);
+  }, [
+    isOnline,
+    isInitialized,
+    dispatch,
+    isLoading,
+    videos.length,
+    isError,
+    errorMessage,
+  ]);
 
   // Merge videos with local status when both API videos and local videos are available
   useEffect(() => {
     const mergeVideos = async () => {
+      // Create a unique key for current data state
+      const currentMergeKey = `${videos.length}-${
+        Object.keys(localVideos || {}).length
+      }-${videosWithStatus.length}`;
+
+      // Skip if we've already processed this exact data combination
+      if (currentMergeKey === lastMergeKey) {
+        console.log('[VideoList] Skipping merge - data unchanged');
+        return;
+      }
+
       if (
         videos &&
         videos.length > 0 &&
         localVideos &&
         typeof localVideos === 'object' &&
-        !isProcessing
+        !isProcessing &&
+        videosWithStatus.length === 0 // Only merge if we don't have merged videos yet
       ) {
         try {
           setIsProcessing(true);
@@ -114,6 +155,7 @@ export default function VideoList() {
             mergedVideos.length > 0
           ) {
             dispatch(setVideosWithStatus(mergedVideos));
+            setLastMergeKey(currentMergeKey); // Mark this data combination as processed
             console.log(
               `[VideoList] Merged ${mergedVideos.length} videos with status`,
             );
@@ -129,7 +171,14 @@ export default function VideoList() {
     };
 
     mergeVideos();
-  }, [videos, localVideos, dispatch, isProcessing]);
+  }, [
+    videos,
+    localVideos,
+    dispatch,
+    isProcessing,
+    videosWithStatus.length,
+    lastMergeKey,
+  ]);
 
   // Auto-download trigger - when videos with status are ready and auto-download is enabled
   useEffect(() => {
@@ -243,6 +292,7 @@ export default function VideoList() {
             {downloadedVideos.length !== 1 ? 's' : ''}
           </Text>
         </View>
+
         {downloadedVideos.length > 0 ? (
           <FlatList
             data={downloadedVideos}
@@ -272,12 +322,28 @@ export default function VideoList() {
     );
   }
 
-  // Show error state
+  // Show error state with retry option
   if (isError && errorMessage) {
     return (
       <View style={styles.centerContainer}>
         <Text style={styles.errorText}>Error Loading Videos</Text>
         <Text style={styles.errorSubText}>{errorMessage}</Text>
+        <TouchableOpacity
+          style={styles.retryButton}
+          onPress={() => {
+            console.log(
+              '[VideoList] Manual retry requested - clearing error state',
+            );
+            // Clear error state and reset merge tracking
+            dispatch(resetVideosState());
+            setLastMergeKey(''); // Reset merge tracking
+            setTimeout(() => {
+              dispatch(fetchVideosThunk());
+            }, 100);
+          }}
+        >
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -345,6 +411,20 @@ const styles = StyleSheet.create({
   errorSubText: {
     fontSize: 14,
     color: ThemeColors.colorGray,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  retryButton: {
+    backgroundColor: ThemeColors.colorPrimary || '#007AFF',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  retryButtonText: {
+    color: ThemeColors.colorWhite,
+    fontSize: 16,
+    fontWeight: 'bold',
     textAlign: 'center',
   },
 });

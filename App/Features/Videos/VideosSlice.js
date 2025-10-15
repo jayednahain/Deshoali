@@ -446,11 +446,14 @@ const videoSlice = createSlice({
     builder
       // Fetch videos thunk
       .addCase(fetchVideosThunk.pending, state => {
+        console.log('XXXXXXXX video api pending');
         state.isLoading = true;
         state.isError = false;
         state.errorMessage = '';
       })
       .addCase(fetchVideosThunk.fulfilled, (state, action) => {
+        console.log('XXXXXXXX video api fulfilled');
+
         state.isLoading = false;
         state.isError = false;
         state.errorMessage = '';
@@ -470,6 +473,8 @@ const videoSlice = createSlice({
         }
       })
       .addCase(fetchVideosThunk.rejected, (state, action) => {
+        console.log('XXXXXXXX video api rejected');
+
         state.isLoading = false;
         state.isError = true;
         state.errorMessage = action.error.message || 'Failed to fetch videos';
@@ -496,6 +501,7 @@ const videoSlice = createSlice({
           console.log('[VideosSlice] No local videos loaded');
         }
       })
+
       .addCase(loadLocalVideosThunk.rejected, (state, action) => {
         console.error(
           '[VideosSlice] Failed to load local videos:',

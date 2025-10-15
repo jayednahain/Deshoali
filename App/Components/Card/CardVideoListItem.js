@@ -33,7 +33,6 @@ export default function CardVideoListItem({ cardItem }) {
     state => state.videosStore?.currentDownload,
   );
 
-  // Safely destructure cardItem with defaults to prevent undefined errors
   const {
     id = null,
     name = '',
@@ -42,7 +41,7 @@ export default function CardVideoListItem({ cardItem }) {
     description = '',
     status = 'NEW',
     downloadProgress = 0,
-    filepath = '', // API returns relative path like "storage/media_files/video.mp4"
+    filepath = '',
     video_url = '', // Fallback for legacy support
   } = cardItem || {};
 
