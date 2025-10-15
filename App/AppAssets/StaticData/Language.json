@@ -10,5 +10,137 @@
   "not_downloaded": {
     "english": "Not Downloaded",
     "bangla": "ডাউনলোড হয়নি"
+  },
+  "downloading": {
+    "english": "Downloading...",
+    "bangla": "ডাউনলোড হচ্ছে..."
+  },
+  "new_video": {
+    "english": "New",
+    "bangla": "নতুন"
+  },
+  "failed": {
+    "english": "Failed",
+    "bangla": "ব্যর্থ"
+  },
+  "retry": {
+    "english": "Retry",
+    "bangla": "আবার চেষ্টা করুন"
+  },
+  "no_internet": {
+    "english": "No Internet Connection",
+    "bangla": "ইন্টারনেট কানেকশন নেই"
+  },
+  "no_internet_download_message": {
+    "english": "Videos cannot be downloaded without internet connection.",
+    "bangla": "ইন্টারনেট কানেকশন নেই। ভিডিও ডাউনলোড করা যাচ্ছে না।"
+  },
+  "api_error": {
+    "english": "Temporary problem. Please try again later",
+    "bangla": "সাময়িক ভাবে সমস্যা হচ্ছে। কিছুক্ষন পর আবার চেষ্টা করুন"
+  },
+  "download_in_progress": {
+    "english": "A video is currently downloading",
+    "bangla": "বর্তমান এ একটি ভিডিও ডাউনলোড হচ্ছে"
+  },
+  "download_in_progress_message": {
+    "english": "Please wait for the current download to complete before starting another.",
+    "bangla": "বর্তমান এ একটি ভিডিও ডাউনলোড হচ্ছে। কিছুক্ষন পর আবার চেষ্টা করুন।"
+  },
+  "insufficient_storage": {
+    "english": "Insufficient Storage Space",
+    "bangla": "আপনার মোবাইল মেমোরি তে পর্যাপ্ত পরিমান জায়গা নেই"
+  },
+  "insufficient_storage_message": {
+    "english": "Please free up at least 1GB of storage space to download videos.",
+    "bangla": "আপনার মোবাইল মেমোরি তে পর্যাপ্ত পরিমান জায়গা নেই।"
+  },
+  "download_warning": {
+    "english": "Don't close the app",
+    "bangla": "অ্যাপ বন্ধ করবেন না"
+  },
+  "download_active": {
+    "english": "Video download is in progress",
+    "bangla": "ভিডিও ডাউনলোড চলছে"
+  },
+  "download_cancelled": {
+    "english": "Video download was cancelled",
+    "bangla": "ভিডিও ডাউনলোড batil kor hoyeche"
+  },
+  "ok": {
+    "english": "OK",
+    "bangla": "ঠিক আছে"
+  },
+  "cancel": {
+    "english": "Cancel",
+    "bangla": "বাতিল করুন"
+  },
+  "exit": {
+    "english": "Exit",
+    "bangla": "বের হন"
+  },
+  "loading": {
+    "english": "Loading...",
+    "bangla": "লোড হচ্ছে..."
+  },
+  "no_videos": {
+    "english": "No videos available",
+    "bangla": "কোন ভিডিও পাওয়া যায়নি"
+  },
+  "error": {
+    "english": "Error",
+    "bangla": "ত্রুটি"
+  },
+  "download_failed": {
+    "english": "Download failed",
+    "bangla": "ডাউনলোড ব্যর্থ হয়েছে"
+  },
+  "video_path_missing": {
+    "english": "Video file path is missing. Cannot retry download.",
+    "bangla": "ভিডিও ফাইলের পথ পাওয়া যাচ্ছে না। পুনরায় ডাউনলোড করা যাবে না।"
+  },
+  "check_network": {
+    "english": "Please check your network settings",
+    "bangla": "অনুগ্রহ করে আপনার নেটওয়ার্ক সেটিংস পরীক্ষা করুন"
+  },
+  "search": {
+    "english": "Search",
+    "bangla": "খোঁজ করুন"
+  },
+  "filter_downloaded": {
+    "english": "Downloaded",
+    "bangla": "ডাউনলোড হয়েছে"
+  },
+  "filter_downloading": {
+    "english": "Downloading",
+    "bangla": "ডাউনলোড হচ্ছে"
+  },
+  "filter_new": {
+    "english": "New",
+    "bangla": "নতুন"
+  },
+  "offline": {
+    "english": "You are offline",
+    "bangla": "আপনি অফলাইনে আছেন"
+  },
+  "offline_message": {
+    "english": "Showing only downloaded videos. Connect to internet to see new videos.",
+    "bangla": "শুধুমাত্র ডাউনলোড করা ভিডিও দেখানো হচ্ছে। নতুন ভিডিও দেখতে ইন্টারনেটে সংযুক্ত হন।"
+  },
+  "pull_to_refresh": {
+    "english": "Pull to refresh",
+    "bangla": "রিফ্রেশ করতে টানুন"
+  },
+  "initializing": {
+    "english": "Initializing app...",
+    "bangla": "অ্যাপ চালু হচ্ছে..."
+  },
+  "storage_check": {
+    "english": "Checking storage space...",
+    "bangla": "স্টোরেজ স্পেস পরীক্ষা করা হচ্ছে..."
+  },
+  "loading_local_videos": {
+    "english": "Loading your videos...",
+    "bangla": "আপনার ভিডিওগুলি লোড করা হচ্ছে..."
   }
 }

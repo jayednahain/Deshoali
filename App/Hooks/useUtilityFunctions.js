@@ -11,7 +11,7 @@ export const useUtilityFunctions = () => {
   };
 
   const getNumbersFromString = val => {
-    if (typeof val === 'undefined' || val == null || val == 'null') return;
+    if (typeof val === 'undefined' || val === null || val === 'null') return;
     let str = val.toString();
     if (language === 'bng') {
       var mapObj = {

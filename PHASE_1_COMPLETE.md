@@ -71,7 +71,7 @@ Complete file system operations with:
 
 **New Reducers:**
 
-- ✅ `setLocalVideos` - Set local videos map
+- ✅ `setLocalVideos` - Set local videos map,
 - ✅ `setVideosWithStatus` - Set merged video list
 - ✅ `setCurrentDownload` - Track current download
 - ✅ `updateVideoStatus` - Change video status

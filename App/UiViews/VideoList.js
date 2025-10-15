@@ -1,80 +1,350 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { ThemeColors } from '../AppTheme';
 import CardVideoListItem from '../Components/Card/CardVideoListItem';
-import { fetchVideosThunk } from '../Features/Videos/VideosSlice';
+import { loadAppConfigThunk } from '../Features/Config/appConfigSlice';
+import {
+  fetchVideosThunk,
+  loadLocalVideosThunk,
+  setVideosWithStatus,
+  startAutoDownloadThunk,
+} from '../Features/Videos/VideosSlice';
 import { useAppStatus } from '../Hooks/useAppStatus';
 import { useNetworkStatus } from '../Hooks/useNetworkStatus';
+import FileSystemService from '../Service/FileSystemService';
+// import VideoComparison from '../Service/VideoComparison';
+import * as VideoComparison from '../Utils/VideoComparison';
 
 export default function VideoList() {
   const dispatch = useDispatch();
-  // const { isOnline } = useNetworkStatus();
   const { isOnline } = useNetworkStatus();
   const { appStatus } = useAppStatus();
 
+  // Get Redux state - be careful with destructuring
+  const videosState = useSelector(state => state.videosStore);
+  const appConfig = useSelector(state => state.appConfig);
+
+  // Safely destructure with defaults to prevent undefined errors
+  const {
+    videos = [],
+    localVideos = {},
+    videosWithStatus = [],
+    currentDownload = null,
+    isLoading = false,
+    isError = false,
+    errorMessage = '',
+  } = videosState || {};
+
+  const { autoDownloadEnabled = true, downloadOnWifiOnly = true } =
+    appConfig || {};
+
+  // State for initialization tracking
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // App status effect - log when app becomes active
   useEffect(() => {
-    console.log('App is active:', appStatus);
+    if (appStatus) {
+      console.log('[VideoList] App status changed:', appStatus);
+    }
   }, [appStatus]);
 
-  const { videos, isLoading, errorMessage, isError } = useSelector(
-    state => state.videosStore,
-  );
-
+  // Initialize app on mount - load configs and local videos
   useEffect(() => {
-    if (isOnline) {
+    const initializeApp = async () => {
+      try {
+        console.log('[VideoList] Initializing app...');
+
+        // Initialize file system first
+        await FileSystemService.initializeVideoDirectory();
+        console.log('[VideoList] File system initialized');
+
+        // Load app configuration
+        dispatch(loadAppConfigThunk());
+        console.log('[VideoList] Loading app configuration');
+
+        // Load local videos from AsyncStorage
+        dispatch(loadLocalVideosThunk());
+        console.log('[VideoList] Loading local videos');
+
+        setIsInitialized(true);
+        console.log('[VideoList] App initialization completed');
+      } catch (error) {
+        console.error('[VideoList] App initialization failed:', error);
+        setIsInitialized(true); // Still mark as initialized to prevent infinite loops
+      }
+    };
+
+    if (!isInitialized) {
+      initializeApp();
+    }
+  }, [dispatch, isInitialized]);
+
+  // Fetch API videos when online and initialized
+  useEffect(() => {
+    if (isOnline && isInitialized && !isLoading && videos.length === 0) {
+      console.log('[VideoList] Fetching videos from API...');
       dispatch(fetchVideosThunk());
     }
-  }, [isOnline, dispatch]);
+  }, [isOnline, isInitialized, dispatch, isLoading, videos.length]);
 
+  // Merge videos with local status when both API videos and local videos are available
+  useEffect(() => {
+    const mergeVideos = async () => {
+      if (
+        videos &&
+        videos.length > 0 &&
+        localVideos &&
+        typeof localVideos === 'object' &&
+        !isProcessing
+      ) {
+        try {
+          setIsProcessing(true);
+          console.log('[VideoList] Merging API videos with local status...');
+
+          const mergedVideos = await VideoComparison.mergeVideosWithLocalStatus(
+            videos,
+            localVideos,
+          );
+
+          if (
+            mergedVideos &&
+            Array.isArray(mergedVideos) &&
+            mergedVideos.length > 0
+          ) {
+            dispatch(setVideosWithStatus(mergedVideos));
+            console.log(
+              `[VideoList] Merged ${mergedVideos.length} videos with status`,
+            );
+          } else {
+            console.warn('[VideoList] No videos after merge operation');
+          }
+        } catch (error) {
+          console.error('[VideoList] Error merging videos:', error);
+        } finally {
+          setIsProcessing(false);
+        }
+      }
+    };
+
+    mergeVideos();
+  }, [videos, localVideos, dispatch, isProcessing]);
+
+  // Auto-download trigger - when videos with status are ready and auto-download is enabled
+  useEffect(() => {
+    const triggerAutoDownload = () => {
+      if (
+        videosWithStatus &&
+        videosWithStatus.length > 0 &&
+        autoDownloadEnabled &&
+        isOnline &&
+        !currentDownload && // No active downloads
+        !isProcessing &&
+        isInitialized
+      ) {
+        // Check WiFi condition
+        if (downloadOnWifiOnly) {
+          // TODO: Implement WiFi check if needed
+          // For now, assume connection is acceptable
+        }
+
+        // Check for NEW videos that need download
+        const newVideos = videosWithStatus.filter(
+          video =>
+            video.status === 'NEW' &&
+            video.id !== undefined &&
+            video.id !== null &&
+            (video.filepath || video.video_url), // Check for either filepath or video_url
+        );
+
+        if (newVideos.length > 0) {
+          console.log(
+            `[VideoList] Starting auto-download for ${newVideos.length} new videos`,
+          );
+          dispatch(startAutoDownloadThunk(videosWithStatus));
+        } else {
+          console.log('[VideoList] No new videos to auto-download');
+        }
+      }
+    };
+
+    // Small delay to ensure state is stable
+    const timeoutId = setTimeout(triggerAutoDownload, 1000);
+
+    return () => clearTimeout(timeoutId);
+  }, [
+    videosWithStatus,
+    autoDownloadEnabled,
+    isOnline,
+    currentDownload,
+    isProcessing,
+    isInitialized,
+    downloadOnWifiOnly,
+    dispatch,
+  ]);
+
+  // Render functions
+  const renderVideoItem = useCallback(({ item }) => {
+    if (!item || item.id === undefined || item.id === null) {
+      console.warn('[VideoList] Invalid video item:', item);
+      return null;
+    }
+
+    return <CardVideoListItem cardItem={item} key={item.id} />;
+  }, []);
+
+  const renderVideoList = useCallback(() => {
+    const dataToRender = isOnline
+      ? videosWithStatus
+      : videosWithStatus.filter(v => v.status === 'DOWNLOADED');
+
+    if (!Array.isArray(dataToRender) || dataToRender.length === 0) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>
+            {isOnline
+              ? 'No videos available'
+              : 'No downloaded videos available offline'}
+          </Text>
+        </View>
+      );
+    }
+
+    return (
+      <FlatList
+        data={dataToRender}
+        renderItem={renderVideoItem}
+        keyExtractor={item => {
+          if (item && item.id !== undefined && item.id !== null) {
+            return String(item.id);
+          }
+          console.warn('[VideoList] Invalid item for keyExtractor:', item);
+          return Math.random().toString();
+        }}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.listContainer}
+      />
+    );
+  }, [isOnline, videosWithStatus, renderVideoItem]);
+
+  // Handle offline mode - show only downloaded videos
   if (!isOnline) {
+    const downloadedVideos = videosWithStatus.filter(
+      video => video.status === 'DOWNLOADED',
+    );
+
     return (
       <View style={styles.container}>
-        <Text style={styles.errorText}>No Internet Connection</Text>
-        <Text style={styles.subText}>Please check your network settings</Text>
+        <View style={styles.offlineHeader}>
+          <Text style={styles.offlineText}>Offline Mode</Text>
+          <Text style={styles.offlineSubText}>
+            Showing {downloadedVideos.length} downloaded video
+            {downloadedVideos.length !== 1 ? 's' : ''}
+          </Text>
+        </View>
+        {downloadedVideos.length > 0 ? (
+          <FlatList
+            data={downloadedVideos}
+            renderItem={renderVideoItem}
+            keyExtractor={item => String(item.id)}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.listContainer}
+          />
+        ) : (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>No downloaded videos available</Text>
+            <Text style={styles.emptySubText}>
+              Connect to internet to download videos
+            </Text>
+          </View>
+        )}
       </View>
     );
   }
 
-  const renderVideoItem = ({ item }) => {
+  // Show loading state during initialization
+  if (!isInitialized || (isLoading && videos.length === 0)) {
     return (
-      <CardVideoListItem
-        // isDownloading={true}
-        isDownloaded={true}
-        cardItem={item}
-      />
+      <View style={styles.centerContainer}>
+        <Text style={styles.loadingText}>Loading videos...</Text>
+      </View>
     );
-  };
-  const renderVideoList = () => {
-    return (
-      <FlatList
-        data={videos}
-        renderItem={renderVideoItem}
-        keyExtractor={item => item.id}
-      />
-    );
-  };
-
-  let mainContent = null;
-
-  if (isLoading) {
-    mainContent = <Text>Loading videos...</Text>;
-  } else if (isError) {
-    mainContent = <Text style={styles.errorText}>{errorMessage}</Text>;
-  } else if (videos.length === 0) {
-    mainContent = <Text>No videos available.</Text>;
-  } else {
-    mainContent = renderVideoList();
   }
 
-  return <View style={styles.container}>{mainContent}</View>;
-}
+  // Show error state
+  if (isError && errorMessage) {
+    return (
+      <View style={styles.centerContainer}>
+        <Text style={styles.errorText}>Error Loading Videos</Text>
+        <Text style={styles.errorSubText}>{errorMessage}</Text>
+      </View>
+    );
+  }
 
+  // Main content
+  return <View style={styles.container}>{renderVideoList()}</View>;
+}
 const styles = StyleSheet.create({
   container: {
     backgroundColor: ThemeColors.colorWhite,
     flex: 1,
+  },
+  centerContainer: {
+    backgroundColor: ThemeColors.colorWhite,
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  listContainer: {
+    padding: 16,
+    paddingBottom: 32,
+  },
+  offlineHeader: {
+    backgroundColor: ThemeColors.colorGray,
+    padding: 12,
+    alignItems: 'center',
+  },
+  offlineText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: ThemeColors.colorBlack,
+    marginBottom: 4,
+  },
+  offlineSubText: {
+    fontSize: 14,
+    color: ThemeColors.colorBlack,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  emptyText: {
+    fontSize: 18,
+    color: ThemeColors.colorBlack,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  emptySubText: {
+    fontSize: 14,
+    color: ThemeColors.colorGray,
+    textAlign: 'center',
+  },
+  loadingText: {
+    fontSize: 18,
+    color: ThemeColors.colorBlack,
+  },
+  errorText: {
+    fontSize: 18,
+    color: ThemeColors.colorRed || '#FF0000',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  errorSubText: {
+    fontSize: 14,
+    color: ThemeColors.colorGray,
+    textAlign: 'center',
   },
 });
