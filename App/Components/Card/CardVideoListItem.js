@@ -216,7 +216,9 @@ export default function CardVideoListItem({ cardItem }) {
         <Text style={styles.overlayText}>
           {i18n('downloading') || 'Downloading'}...
         </Text>
-        <Text style={styles.overlayProgress}>{progress}%</Text>
+        <Text style={styles.overlayProgress}>
+          {UtilityFunctions.getFontSizeWithScale(progress)}%
+        </Text>
         {progress > 0 && (
           <View style={styles.progressBarContainer}>
             <View style={[styles.progressBar, { width: `${progress}%` }]} />
@@ -243,8 +245,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#C9D2C0',
     borderRadius: 8,
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: {
@@ -265,6 +267,7 @@ const styles = StyleSheet.create({
     borderColor: '#4DABF7',
   },
   middleSection: {
+    backgroundColor: 'red',
     width: '70%',
     paddingHorizontal: 8,
   },
@@ -272,8 +275,9 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   chipContainer: {
+    backgroundColor: 'yellow',
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    // flexWrap: 'wrap',
     marginTop: 8,
   },
   downloadingChip: {

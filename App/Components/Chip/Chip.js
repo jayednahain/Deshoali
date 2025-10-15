@@ -29,7 +29,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 7,
     paddingVertical: 3,
     color: ThemeColors.colorWhite,
-    marginRight: 10,
+    marginRight: 5,
   },
 });
 
