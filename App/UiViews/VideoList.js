@@ -53,7 +53,7 @@ export default function VideoList() {
 
   // State to track if merging has been completed for current data
   const [lastMergeKey, setLastMergeKey] = useState('');
-  
+
   // State to track server synchronization
   const [lastSyncKey, setLastSyncKey] = useState('');
 
@@ -208,20 +208,21 @@ export default function VideoList() {
       ) {
         try {
           console.log('[VideoList] Starting server synchronization...');
-          
+
           // Perform server sync with auto-cleanup enabled
-          await dispatch(serverSyncThunk({
-            serverVideos: videos,
-            localVideos: localVideos,
-            options: {
-              autoCleanup: true,  // Automatically remove deleted videos
-              dryRun: false,      // Actually perform the cleanup
-            },
-          }));
+          await dispatch(
+            serverSyncThunk({
+              serverVideos: videos,
+              localVideos: localVideos,
+              options: {
+                autoCleanup: true, // Automatically remove deleted videos
+                dryRun: false, // Actually perform the cleanup
+              },
+            }),
+          );
 
           setLastSyncKey(currentSyncKey); // Mark this sync as completed
           console.log('[VideoList] Server synchronization completed');
-
         } catch (error) {
           console.error('[VideoList] Server synchronization failed:', error);
           // Don't throw error - sync is optional, main app should continue
@@ -400,7 +401,7 @@ export default function VideoList() {
             // Clear error state and reset merge tracking
             dispatch(resetVideosState());
             setLastMergeKey(''); // Reset merge tracking
-            setLastSyncKey('');  // Reset sync tracking
+            setLastSyncKey(''); // Reset sync tracking
             setTimeout(() => {
               dispatch(fetchVideosThunk());
             }, 100);

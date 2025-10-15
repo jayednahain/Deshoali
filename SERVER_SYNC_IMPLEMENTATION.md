@@ -7,16 +7,19 @@ The Server Synchronization feature automatically maintains consistency between s
 ### **Scenario Examples:**
 
 **Initial State:**
-- Server: [5, 4, 3, 2, 1] 
+
+- Server: [5, 4, 3, 2, 1]
 - Local: [5, 4, 3, 2, 1] (all downloaded)
 - ✅ **Result**: Everything in sync
 
 **Server Adds New Videos:**
+
 - Server: [7, 6, 5, 4, 3, 2, 1]
-- Local: [5, 4, 3, 2, 1] 
+- Local: [5, 4, 3, 2, 1]
 - ✅ **Result**: Downloads 7, 6 automatically
 
 **Server Removes Videos:**
+
 - Server: [7, 6, 5, 3, 1] (removed 4, 2)
 - Local: [7, 6, 5, 4, 3, 2, 1]
 - ✅ **Result**: Deletes 4, 2 from local storage and device files
@@ -24,35 +27,43 @@ The Server Synchronization feature automatically maintains consistency between s
 ## 🔧 **How It Works**
 
 ### **1. Server Sync Service (`ServerSyncService.js`)**
+
 ```javascript
 // Categorizes videos into:
-const result = await ServerSyncService.analyzeServerSync(serverVideos, localVideos);
+const result = await ServerSyncService.analyzeServerSync(
+  serverVideos,
+  localVideos,
+);
 // Returns:
 // - newVideos: Need to download
-// - existingVideos: Already have, keep them  
+// - existingVideos: Already have, keep them
 // - deletedVideos: Remove from local storage
 ```
 
 ### **2. Redux Integration (`VideosSlice.js`)**
+
 ```javascript
 // New thunk for server synchronization
-dispatch(serverSyncThunk({
-  serverVideos: videos,
-  localVideos: localVideos,
-  options: {
-    autoCleanup: true,  // Automatically remove deleted videos
-    dryRun: false,      // Actually perform the cleanup
-  }
-}));
+dispatch(
+  serverSyncThunk({
+    serverVideos: videos,
+    localVideos: localVideos,
+    options: {
+      autoCleanup: true, // Automatically remove deleted videos
+      dryRun: false, // Actually perform the cleanup
+    },
+  }),
+);
 ```
 
 ### **3. Automatic Integration (`VideoList.js`)**
+
 ```javascript
 // Runs after video merging is complete
 useEffect(() => {
   // Automatically syncs when:
   // - Server videos are loaded
-  // - Local videos are loaded  
+  // - Local videos are loaded
   // - Merging is complete
   // - User is online
 }, [videos, videosWithStatus, localVideos, isOnline]);
@@ -63,6 +74,7 @@ useEffect(() => {
 ### **Test 1: Simulate Server Video Deletion**
 
 1. **Setup Test Data:**
+
    ```bash
    # Start with fresh data
    node clear.js
@@ -71,6 +83,7 @@ useEffect(() => {
    ```
 
 2. **Simulate Server Deletion:**
+
    ```javascript
    // In VideosAPI.js, modify the response to remove some videos
    // Or create a test endpoint that returns fewer videos
@@ -90,13 +103,14 @@ useEffect(() => {
 ### **Test 2: Check Sync Reports**
 
 The system generates detailed reports:
+
 ```javascript
 {
   serverSync: {
     totalServerVideos: 7,
     totalLocalVideos: 10,
     newVideos: 0,
-    existingVideos: 7, 
+    existingVideos: 7,
     deletedVideos: 3
   },
   cleanup: {
@@ -118,16 +132,19 @@ The system generates detailed reports:
 ## 🛡️ **Safety Features**
 
 ### **1. Non-Destructive By Default**
+
 - Runs in background, doesn't interfere with main app
 - Errors in sync don't break video playback
 - Comprehensive logging for debugging
 
 ### **2. Smart State Management**
+
 - Only syncs when data actually changes
 - Prevents infinite loops with state tracking
 - Batches operations for efficiency
 
 ### **3. Error Handling**
+
 ```javascript
 // If sync fails:
 - Main app continues working normally
@@ -137,26 +154,29 @@ The system generates detailed reports:
 ```
 
 ### **4. Flexible Options**
+
 ```javascript
 serverSyncThunk({
   serverVideos: videos,
-  localVideos: localVideos, 
+  localVideos: localVideos,
   options: {
-    autoCleanup: true,   // Set false to just analyze
-    dryRun: false,       // Set true to test without changes
-  }
+    autoCleanup: true, // Set false to just analyze
+    dryRun: false, // Set true to test without changes
+  },
 });
 ```
 
 ## 📊 **Integration Points**
 
 ### **Files Modified:**
+
 - ✅ `App/Service/ServerSyncService.js` - Core sync logic
 - ✅ `App/Service/LocalStorageService.js` - Added removeLocalVideo method
 - ✅ `App/Features/Videos/VideosSlice.js` - Added serverSyncThunk
 - ✅ `App/UiViews/VideoList.js` - Integrated automatic sync
 
 ### **Key Features:**
+
 - ✅ **Automatic Detection**: Runs after video merge
 - ✅ **File Cleanup**: Removes video files from device
 - ✅ **Storage Cleanup**: Removes metadata from AsyncStorage
@@ -172,6 +192,7 @@ serverSyncThunk({
 4. **Add UI Notifications**: Show user when sync happens (optional)
 
 The synchronization will now run automatically whenever:
+
 - App starts and loads videos
 - User refreshes/retries after error
 - New videos are detected from server

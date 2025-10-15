@@ -249,7 +249,9 @@ export const serverSyncThunk = createAsyncThunk(
       }
 
       if (!localVideos || typeof localVideos !== 'object') {
-        console.log('[VideosSlice] No local videos provided, treating as empty');
+        console.log(
+          '[VideosSlice] No local videos provided, treating as empty',
+        );
       }
 
       // Perform complete sync analysis and cleanup
@@ -266,8 +268,13 @@ export const serverSyncThunk = createAsyncThunk(
         throw new Error(syncResult.error || 'Server synchronization failed');
       }
 
-      console.log('[VideosSlice] Server synchronization completed successfully');
-      console.log(`[VideosSlice] Sync summary:`, syncResult.syncReport.serverSync);
+      console.log(
+        '[VideosSlice] Server synchronization completed successfully',
+      );
+      console.log(
+        `[VideosSlice] Sync summary:`,
+        syncResult.syncReport.serverSync,
+      );
 
       // Return the sync result for the reducer to handle
       return {
@@ -276,10 +283,11 @@ export const serverSyncThunk = createAsyncThunk(
         syncReport: syncResult.syncReport,
         options,
       };
-
     } catch (error) {
       console.error('[VideosSlice] Server synchronization failed:', error);
-      return rejectWithValue(error.message || 'Failed to synchronize with server');
+      return rejectWithValue(
+        error.message || 'Failed to synchronize with server',
+      );
     }
   },
 );
@@ -600,14 +608,23 @@ const videoSlice = createSlice({
         // Don't change loading state as this is a background operation
       })
       .addCase(serverSyncThunk.fulfilled, (state, action) => {
-        console.log('[VideosSlice] Server synchronization completed:', action.payload);
-        
+        console.log(
+          '[VideosSlice] Server synchronization completed:',
+          action.payload,
+        );
+
         const { syncAnalysis, cleanupResult, syncReport } = action.payload;
-        
+
         // Update local videos if cleanup occurred
-        if (cleanupResult && cleanupResult.success && cleanupResult.cleanedCount > 0) {
-          console.log(`[VideosSlice] Removing ${cleanupResult.cleanedCount} cleaned videos from state`);
-          
+        if (
+          cleanupResult &&
+          cleanupResult.success &&
+          cleanupResult.cleanedCount > 0
+        ) {
+          console.log(
+            `[VideosSlice] Removing ${cleanupResult.cleanedCount} cleaned videos from state`,
+          );
+
           // Remove cleaned videos from localVideos state
           const updatedLocalVideos = { ...state.localVideos };
           syncAnalysis.deletedVideos.forEach(deletedVideo => {
@@ -617,20 +634,26 @@ const videoSlice = createSlice({
 
           // Remove cleaned videos from videosWithStatus
           state.videosWithStatus = state.videosWithStatus.filter(
-            video => !syncAnalysis.deletedVideos.some(deleted => deleted.id === video.id)
+            video =>
+              !syncAnalysis.deletedVideos.some(
+                deleted => deleted.id === video.id,
+              ),
           );
         }
 
         // Log sync summary
         console.log('[VideosSlice] Sync report:', {
           newVideos: syncReport.serverSync.newVideos,
-          existingVideos: syncReport.serverSync.existingVideos, 
+          existingVideos: syncReport.serverSync.existingVideos,
           deletedVideos: syncReport.serverSync.deletedVideos,
           cleanedUp: cleanupResult ? cleanupResult.cleanedCount : 0,
         });
       })
       .addCase(serverSyncThunk.rejected, (state, action) => {
-        console.error('[VideosSlice] Server synchronization failed:', action.payload);
+        console.error(
+          '[VideosSlice] Server synchronization failed:',
+          action.payload,
+        );
         // Don't change error state as this is a background operation
         // Main app functionality should continue working
       });

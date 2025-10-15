@@ -1,9 +1,9 @@
 /**
  * Server Synchronization Service
- * 
+ *
  * Handles synchronization between server video list and local stored videos:
  * 1. Identifies new videos from server (not in local storage)
- * 2. Identifies existing videos that are still on server 
+ * 2. Identifies existing videos that are still on server
  * 3. Identifies deleted videos (in local storage but not on server)
  * 4. Provides cleanup and sync operations
  */
@@ -22,7 +22,9 @@ class ServerSyncService {
     try {
       console.log('[ServerSync] Starting server synchronization analysis...');
       console.log(`[ServerSync] Server videos count: ${serverVideos.length}`);
-      console.log(`[ServerSync] Local videos count: ${Object.keys(localVideos).length}`);
+      console.log(
+        `[ServerSync] Local videos count: ${Object.keys(localVideos).length}`,
+      );
 
       // Validate inputs
       if (!Array.isArray(serverVideos)) {
@@ -30,7 +32,9 @@ class ServerSyncService {
       }
 
       if (!localVideos || typeof localVideos !== 'object') {
-        console.log('[ServerSync] No local videos found, all server videos are new');
+        console.log(
+          '[ServerSync] No local videos found, all server videos are new',
+        );
         return {
           newVideos: serverVideos,
           existingVideos: [],
@@ -48,16 +52,22 @@ class ServerSyncService {
 
       // Convert server videos to ID set for faster lookup
       const serverVideoIds = new Set(serverVideos.map(video => video.id));
-      const localVideoIds = Object.keys(localVideos).map(id => parseInt(id, 10));
+      const localVideoIds = Object.keys(localVideos).map(id =>
+        parseInt(id, 10),
+      );
 
       // 1. NEW VIDEOS: In server response but not in local storage
       const newVideos = serverVideos.filter(video => !localVideos[video.id]);
 
       // 2. EXISTING VIDEOS: In both server and local storage
-      const existingVideos = serverVideos.filter(video => localVideos[video.id]);
+      const existingVideos = serverVideos.filter(
+        video => localVideos[video.id],
+      );
 
       // 3. DELETED VIDEOS: In local storage but not in server response
-      const deletedVideoIds = localVideoIds.filter(id => !serverVideoIds.has(id));
+      const deletedVideoIds = localVideoIds.filter(
+        id => !serverVideoIds.has(id),
+      );
       const deletedVideos = deletedVideoIds.map(id => ({
         id,
         localData: localVideos[id],
@@ -65,7 +75,7 @@ class ServerSyncService {
 
       const syncResult = {
         newVideos,
-        existingVideos, 
+        existingVideos,
         deletedVideos,
         syncNeeded: newVideos.length > 0 || deletedVideos.length > 0,
         analysis: {
@@ -79,12 +89,15 @@ class ServerSyncService {
 
       console.log('[ServerSync] Synchronization analysis complete:');
       console.log(`[ServerSync] - New videos: ${syncResult.analysis.newCount}`);
-      console.log(`[ServerSync] - Existing videos: ${syncResult.analysis.existingCount}`);
-      console.log(`[ServerSync] - Deleted videos: ${syncResult.analysis.deletedCount}`);
+      console.log(
+        `[ServerSync] - Existing videos: ${syncResult.analysis.existingCount}`,
+      );
+      console.log(
+        `[ServerSync] - Deleted videos: ${syncResult.analysis.deletedCount}`,
+      );
       console.log(`[ServerSync] - Sync needed: ${syncResult.syncNeeded}`);
 
       return syncResult;
-
     } catch (error) {
       console.error('[ServerSync] Error during sync analysis:', error);
       throw error;
@@ -98,7 +111,9 @@ class ServerSyncService {
    */
   static async cleanupDeletedVideos(deletedVideos) {
     try {
-      console.log(`[ServerSync] Starting cleanup of ${deletedVideos.length} deleted videos...`);
+      console.log(
+        `[ServerSync] Starting cleanup of ${deletedVideos.length} deleted videos...`,
+      );
 
       if (!Array.isArray(deletedVideos) || deletedVideos.length === 0) {
         console.log('[ServerSync] No deleted videos to clean up');
@@ -119,21 +134,30 @@ class ServerSyncService {
       for (const deletedVideo of deletedVideos) {
         try {
           const { id, localData } = deletedVideo;
-          
+
           console.log(`[ServerSync] Cleaning up deleted video ID: ${id}`);
 
           // 1. Remove video file from device storage (if it exists)
           if (localData && localData.localFilePath) {
             try {
-              const fileExists = await FileSystemService.fileExists(localData.localFilePath);
+              const fileExists = await FileSystemService.fileExists(
+                localData.localFilePath,
+              );
               if (fileExists) {
                 await FileSystemService.deleteFile(localData.localFilePath);
-                console.log(`[ServerSync] Deleted video file: ${localData.localFilePath}`);
+                console.log(
+                  `[ServerSync] Deleted video file: ${localData.localFilePath}`,
+                );
               } else {
-                console.log(`[ServerSync] Video file not found: ${localData.localFilePath}`);
+                console.log(
+                  `[ServerSync] Video file not found: ${localData.localFilePath}`,
+                );
               }
             } catch (fileError) {
-              console.warn(`[ServerSync] Failed to delete file for video ${id}:`, fileError);
+              console.warn(
+                `[ServerSync] Failed to delete file for video ${id}:`,
+                fileError,
+              );
               cleanupResults.errors.push({
                 videoId: id,
                 type: 'FILE_DELETE_ERROR',
@@ -148,17 +172,22 @@ class ServerSyncService {
             console.log(`[ServerSync] Removed video ${id} from local storage`);
             cleanupResults.cleanedCount++;
           } catch (storageError) {
-            console.error(`[ServerSync] Failed to remove video ${id} from local storage:`, storageError);
+            console.error(
+              `[ServerSync] Failed to remove video ${id} from local storage:`,
+              storageError,
+            );
             cleanupResults.errors.push({
               videoId: id,
-              type: 'STORAGE_REMOVE_ERROR', 
+              type: 'STORAGE_REMOVE_ERROR',
               error: storageError.message,
             });
             cleanupResults.success = false;
           }
-
         } catch (videoError) {
-          console.error(`[ServerSync] Error cleaning up video ${deletedVideo.id}:`, videoError);
+          console.error(
+            `[ServerSync] Error cleaning up video ${deletedVideo.id}:`,
+            videoError,
+          );
           cleanupResults.errors.push({
             videoId: deletedVideo.id,
             type: 'GENERAL_ERROR',
@@ -168,10 +197,11 @@ class ServerSyncService {
         }
       }
 
-      console.log(`[ServerSync] Cleanup completed. Cleaned: ${cleanupResults.cleanedCount}, Errors: ${cleanupResults.errors.length}`);
-      
-      return cleanupResults;
+      console.log(
+        `[ServerSync] Cleanup completed. Cleaned: ${cleanupResults.cleanedCount}, Errors: ${cleanupResults.errors.length}`,
+      );
 
+      return cleanupResults;
     } catch (error) {
       console.error('[ServerSync] Critical error during cleanup:', error);
       return {
@@ -205,15 +235,17 @@ class ServerSyncService {
         deletedVideos: syncAnalysis.analysis.deletedCount,
         syncRequired: syncAnalysis.syncNeeded,
       },
-      cleanup: cleanupResult ? {
-        attempted: true,
-        success: cleanupResult.success,
-        videosRemoved: cleanupResult.cleanedCount,
-        errors: cleanupResult.errors.length,
-        errorDetails: cleanupResult.errors,
-      } : {
-        attempted: false,
-      },
+      cleanup: cleanupResult
+        ? {
+            attempted: true,
+            success: cleanupResult.success,
+            videosRemoved: cleanupResult.cleanedCount,
+            errors: cleanupResult.errors.length,
+            errorDetails: cleanupResult.errors,
+          }
+        : {
+            attempted: false,
+          },
       recommendations: [],
     };
 
@@ -228,7 +260,7 @@ class ServerSyncService {
 
     if (syncAnalysis.analysis.deletedCount > 0 && !cleanupResult) {
       report.recommendations.push({
-        type: 'CLEANUP_NEEDED', 
+        type: 'CLEANUP_NEEDED',
         message: `${syncAnalysis.analysis.deletedCount} video(s) deleted from server should be cleaned up locally`,
         action: 'RUN_CLEANUP',
       });
@@ -242,7 +274,10 @@ class ServerSyncService {
       });
     }
 
-    if (syncAnalysis.analysis.newCount === 0 && syncAnalysis.analysis.deletedCount === 0) {
+    if (
+      syncAnalysis.analysis.newCount === 0 &&
+      syncAnalysis.analysis.deletedCount === 0
+    ) {
       report.recommendations.push({
         type: 'IN_SYNC',
         message: 'Local storage is synchronized with server',
@@ -264,23 +299,32 @@ class ServerSyncService {
   static async performCompleteSync(serverVideos, localVideos, options = {}) {
     try {
       console.log('[ServerSync] Starting complete server synchronization...');
-      
+
       const {
-        autoCleanup = true,  // Automatically cleanup deleted videos
-        dryRun = false,      // Just analyze, don't make changes
+        autoCleanup = true, // Automatically cleanup deleted videos
+        dryRun = false, // Just analyze, don't make changes
       } = options;
 
       // Step 1: Analyze what needs to be synced
-      const syncAnalysis = await this.analyzeServerSync(serverVideos, localVideos);
+      const syncAnalysis = await this.analyzeServerSync(
+        serverVideos,
+        localVideos,
+      );
 
       let cleanupResult = null;
 
       // Step 2: Cleanup deleted videos if needed and allowed
       if (!dryRun && autoCleanup && syncAnalysis.deletedVideos.length > 0) {
-        console.log('[ServerSync] Auto-cleanup enabled, cleaning up deleted videos...');
-        cleanupResult = await this.cleanupDeletedVideos(syncAnalysis.deletedVideos);
+        console.log(
+          '[ServerSync] Auto-cleanup enabled, cleaning up deleted videos...',
+        );
+        cleanupResult = await this.cleanupDeletedVideos(
+          syncAnalysis.deletedVideos,
+        );
       } else if (syncAnalysis.deletedVideos.length > 0) {
-        console.log('[ServerSync] Cleanup needed but skipped (dryRun or autoCleanup disabled)');
+        console.log(
+          '[ServerSync] Cleanup needed but skipped (dryRun or autoCleanup disabled)',
+        );
       }
 
       // Step 3: Generate comprehensive report
@@ -294,11 +338,15 @@ class ServerSyncService {
         dryRun,
       };
 
-      console.log('[ServerSync] Complete synchronization finished successfully');
+      console.log(
+        '[ServerSync] Complete synchronization finished successfully',
+      );
       return completeResult;
-
     } catch (error) {
-      console.error('[ServerSync] Error during complete synchronization:', error);
+      console.error(
+        '[ServerSync] Error during complete synchronization:',
+        error,
+      );
       return {
         success: false,
         error: error.message,
