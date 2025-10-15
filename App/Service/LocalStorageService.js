@@ -251,6 +251,15 @@ class LocalStorageService {
   }
 
   /**
+   * Remove local video metadata (alias for removeVideoMetadata for consistency)
+   * @param {number} videoId - Video identifier
+   * @returns {Promise<boolean>} Success status
+   */
+  async removeLocalVideo(videoId) {
+    return await this.removeVideoMetadata(videoId);
+  }
+
+  /**
    * Remove video metadata from storage
    * @param {number} videoId - Video identifier
    * @returns {Promise<boolean>} Success status

@@ -14,6 +14,7 @@ import {
   fetchVideosThunk,
   loadLocalVideosThunk,
   resetVideosState,
+  serverSyncThunk,
   setVideosWithStatus,
   startAutoDownloadThunk,
 } from '../Features/Videos/VideosSlice';
@@ -52,6 +53,9 @@ export default function VideoList() {
 
   // State to track if merging has been completed for current data
   const [lastMergeKey, setLastMergeKey] = useState('');
+  
+  // State to track server synchronization
+  const [lastSyncKey, setLastSyncKey] = useState('');
 
   // App status effect - log when app becomes active
   useEffect(() => {
@@ -178,6 +182,65 @@ export default function VideoList() {
     isProcessing,
     videosWithStatus.length,
     lastMergeKey,
+  ]);
+
+  // Server synchronization - run after successful merge to cleanup deleted videos
+  useEffect(() => {
+    const performServerSync = async () => {
+      // Create a unique key for current sync state
+      const currentSyncKey = `${videos.length}-${videosWithStatus.length}`;
+
+      // Skip if we've already synced this data combination
+      if (currentSyncKey === lastSyncKey) {
+        return;
+      }
+
+      // Only sync when we have both server videos and merged videos with status
+      if (
+        videos &&
+        videos.length > 0 &&
+        videosWithStatus &&
+        videosWithStatus.length > 0 &&
+        localVideos &&
+        typeof localVideos === 'object' &&
+        !isProcessing &&
+        isOnline
+      ) {
+        try {
+          console.log('[VideoList] Starting server synchronization...');
+          
+          // Perform server sync with auto-cleanup enabled
+          await dispatch(serverSyncThunk({
+            serverVideos: videos,
+            localVideos: localVideos,
+            options: {
+              autoCleanup: true,  // Automatically remove deleted videos
+              dryRun: false,      // Actually perform the cleanup
+            },
+          }));
+
+          setLastSyncKey(currentSyncKey); // Mark this sync as completed
+          console.log('[VideoList] Server synchronization completed');
+
+        } catch (error) {
+          console.error('[VideoList] Server synchronization failed:', error);
+          // Don't throw error - sync is optional, main app should continue
+        }
+      }
+    };
+
+    // Add a small delay to ensure merge is fully complete
+    const timeoutId = setTimeout(performServerSync, 2000);
+
+    return () => clearTimeout(timeoutId);
+  }, [
+    videos,
+    videosWithStatus,
+    localVideos,
+    isProcessing,
+    isOnline,
+    lastSyncKey,
+    dispatch,
   ]);
 
   // Auto-download trigger - when videos with status are ready and auto-download is enabled
@@ -337,6 +400,7 @@ export default function VideoList() {
             // Clear error state and reset merge tracking
             dispatch(resetVideosState());
             setLastMergeKey(''); // Reset merge tracking
+            setLastSyncKey('');  // Reset sync tracking
             setTimeout(() => {
               dispatch(fetchVideosThunk());
             }, 100);
