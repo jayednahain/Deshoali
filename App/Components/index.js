@@ -3,3 +3,9 @@
 // import { Chip, ChipWarning } from './Chip/Chip';
 
 // export { ButtonSquare, CardVideoListItem, Chip, ChipWarning };
+
+// New optimized components
+import OfflineHeader from './Header/OfflineHeader';
+import VideoListRenderer from './List/VideoListRenderer';
+
+export { OfflineHeader, VideoListRenderer };

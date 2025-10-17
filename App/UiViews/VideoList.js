@@ -1,15 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
-import {
-  FlatList,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { ThemeColors } from '../AppTheme';
-import CardVideoListItem from '../Components/Card/CardVideoListItem';
+import { OfflineHeader, VideoListRenderer } from '../Components';
 import { loadAppConfigThunk } from '../Features/Config/appConfigSlice';
 import {
   fetchVideosThunk,
@@ -61,6 +54,15 @@ export default function VideoList() {
   // State for pull-to-refresh
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Memoized values for performance optimization
+  const downloadedVideos = useMemo(() => {
+    return videosWithStatus.filter(video => video.status === 'DOWNLOADED');
+  }, [videosWithStatus]);
+
+  const downloadedCount = useMemo(() => {
+    return downloadedVideos.length;
+  }, [downloadedVideos]);
+
   // App status effect - log when app becomes active
   useEffect(() => {
     if (appStatus) {
@@ -68,29 +70,15 @@ export default function VideoList() {
     }
   }, [appStatus]);
 
-  // Initialize app on mount - load configs and local videos
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        console.log('[VideoList] Initializing app...');
-
-        // Initialize file system first
         await FileSystemService.initializeVideoDirectory();
-        console.log('[VideoList] File system initialized');
-
-        // Load app configuration
         dispatch(loadAppConfigThunk());
-        console.log('[VideoList] Loading app configuration');
-
-        // Load local videos from AsyncStorage
         dispatch(loadLocalVideosThunk());
-        console.log('[VideoList] Loading local videos');
-
         setIsInitialized(true);
-        console.log('[VideoList] App initialization completed');
       } catch (error) {
-        console.error('[VideoList] App initialization failed:', error);
-        setIsInitialized(true); // Still mark as initialized to prevent infinite loops
+        setIsInitialized(true);
       }
     };
 
@@ -99,7 +87,7 @@ export default function VideoList() {
     }
   }, [dispatch, isInitialized]);
 
-  // Fetch API videos when online and initialized (but don't retry if there's an error)
+  // Fetch API videos when online and initialized (optimized dependencies)
   useEffect(() => {
     if (
       isOnline &&
@@ -108,25 +96,17 @@ export default function VideoList() {
       videos.length === 0 &&
       !isError
     ) {
-      console.log('[VideoList] Fetching videos from API...');
       dispatch(fetchVideosThunk());
-    } else if (isError) {
-      console.log(
-        '[VideoList] Skipping API call due to previous error:',
-        errorMessage,
-      );
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    isOnline,
-    isInitialized,
-    dispatch,
-    isLoading,
-    videos.length,
-    isError,
-    errorMessage,
+    isOnline, // Only re-run when network changes
+    isInitialized, // Only re-run when app is ready
+    dispatch, // React requirement
+    // Removed isLoading, videos.length, isError, errorMessage to prevent loops
   ]);
 
-  // Merge videos with local status when both API videos and local videos are available
+  // Merge videos with local status when both API videos and local videos are available (optimized)
   useEffect(() => {
     const mergeVideos = async () => {
       // Create a unique key for current data state
@@ -179,16 +159,16 @@ export default function VideoList() {
     };
 
     mergeVideos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    videos,
-    localVideos,
-    dispatch,
-    isProcessing,
-    videosWithStatus.length,
-    lastMergeKey,
+    videos, // Re-run when API videos change
+    localVideos, // Re-run when local videos change
+    dispatch, // React requirement
+    // Removed isProcessing, videosWithStatus.length, lastMergeKey to prevent infinite loops
+    // These are checked inside the effect condition
   ]);
 
-  // Server synchronization - run after successful merge to cleanup deleted videos
+  // Server synchronization - run after successful merge to cleanup deleted videos (optimized)
   useEffect(() => {
     const performServerSync = async () => {
       // Create a unique key for current sync state
@@ -238,17 +218,18 @@ export default function VideoList() {
     const timeoutId = setTimeout(performServerSync, 2000);
 
     return () => clearTimeout(timeoutId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    videos,
-    videosWithStatus,
-    localVideos,
-    isProcessing,
-    isOnline,
-    lastSyncKey,
-    dispatch,
+    videos, // Re-run when API videos change
+    videosWithStatus, // Re-run when merged videos change
+    localVideos, // Re-run when local videos change
+    isOnline, // Re-run when network changes
+    dispatch, // React requirement
+    // Removed isProcessing, lastSyncKey to prevent loops
+    // These are checked inside the effect condition
   ]);
 
-  // Auto-download trigger - when videos with status are ready and auto-download is enabled
+  // Auto-download trigger - when videos with status are ready and auto-download is enabled (optimized)
   useEffect(() => {
     const triggerAutoDownload = () => {
       if (
@@ -290,15 +271,15 @@ export default function VideoList() {
     const timeoutId = setTimeout(triggerAutoDownload, 1000);
 
     return () => clearTimeout(timeoutId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    videosWithStatus,
-    autoDownloadEnabled,
-    isOnline,
-    currentDownload,
-    isProcessing,
-    isInitialized,
-    downloadOnWifiOnly,
-    dispatch,
+    videosWithStatus, // Re-run when videos change
+    autoDownloadEnabled, // Re-run when setting changes
+    isOnline, // Re-run when network changes
+    isInitialized, // Re-run when app is ready
+    dispatch, // React requirement
+    // Removed currentDownload, isProcessing, downloadOnWifiOnly to prevent excessive re-runs
+    // These are checked inside the effect condition
   ]);
 
   // Handle pull-to-refresh
@@ -332,108 +313,29 @@ export default function VideoList() {
     }
   }, [isOnline, dispatch]);
 
-  // Render functions
-  const renderVideoItem = useCallback(({ item }) => {
-    if (!item || item.id === undefined || item.id === null) {
-      console.warn('[VideoList] Invalid video item:', item);
-      return null;
-    }
-
-    return <CardVideoListItem cardItem={item} key={item.id} />;
-  }, []);
-
+  // Simplified render function using new VideoListRenderer component
   const renderVideoList = useCallback(() => {
-    const dataToRender = isOnline
-      ? videosWithStatus
-      : videosWithStatus.filter(v => v.status === 'DOWNLOADED');
-
-    if (!Array.isArray(dataToRender) || dataToRender.length === 0) {
-      return (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>
-            {isOnline
-              ? 'No videos available'
-              : 'No downloaded videos available offline'}
-          </Text>
-        </View>
-      );
-    }
-
     return (
-      <FlatList
-        data={dataToRender}
-        renderItem={renderVideoItem}
-        keyExtractor={item => {
-          if (item && item.id !== undefined && item.id !== null) {
-            return String(item.id);
-          }
-          console.warn('[VideoList] Invalid item for keyExtractor:', item);
-          return Math.random().toString();
-        }}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.listContainer}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={handleRefresh}
-            colors={[ThemeColors.colorPrimary || '#007AFF']}
-            tintColor={ThemeColors.colorPrimary || '#007AFF'}
-            title="Refreshing videos..."
-            titleColor={ThemeColors.colorGray}
-          />
-        }
+      <VideoListRenderer
+        videos={videosWithStatus}
+        isOnline={isOnline}
+        onRefresh={handleRefresh}
+        isRefreshing={isRefreshing}
       />
     );
-  }, [
-    isOnline,
-    videosWithStatus,
-    renderVideoItem,
-    isRefreshing,
-    handleRefresh,
-  ]);
+  }, [videosWithStatus, isOnline, handleRefresh, isRefreshing]);
 
   // Handle offline mode - show only downloaded videos
   if (!isOnline) {
-    const downloadedVideos = videosWithStatus.filter(
-      video => video.status === 'DOWNLOADED',
-    );
-
     return (
       <View style={styles.container}>
-        <View style={styles.offlineHeader}>
-          <Text style={styles.offlineText}>Offline Mode</Text>
-          <Text style={styles.offlineSubText}>
-            Showing {downloadedVideos.length} downloaded video
-            {downloadedVideos.length !== 1 ? 's' : ''}
-          </Text>
-        </View>
-
-        {downloadedVideos.length > 0 ? (
-          <FlatList
-            data={downloadedVideos}
-            renderItem={renderVideoItem}
-            keyExtractor={item => String(item.id)}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.listContainer}
-            refreshControl={
-              <RefreshControl
-                refreshing={isRefreshing}
-                onRefresh={handleRefresh}
-                colors={[ThemeColors.colorPrimary || '#007AFF']}
-                tintColor={ThemeColors.colorPrimary || '#007AFF'}
-                title="Refreshing videos..."
-                titleColor={ThemeColors.colorGray}
-              />
-            }
-          />
-        ) : (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No downloaded videos available</Text>
-            <Text style={styles.emptySubText}>
-              Connect to internet to download videos
-            </Text>
-          </View>
-        )}
+        <OfflineHeader downloadedCount={downloadedCount} />
+        <VideoListRenderer
+          videos={videosWithStatus}
+          isOnline={isOnline}
+          onRefresh={handleRefresh}
+          isRefreshing={isRefreshing}
+        />
       </View>
     );
   }
@@ -477,6 +379,7 @@ export default function VideoList() {
   // Main content
   return <View style={styles.container}>{renderVideoList()}</View>;
 }
+
 const styles = StyleSheet.create({
   container: {
     backgroundColor: ThemeColors.colorWhite,
@@ -487,42 +390,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  listContainer: {
-    padding: 16,
-    paddingBottom: 32,
-  },
-  offlineHeader: {
-    backgroundColor: ThemeColors.colorGray,
-    padding: 12,
-    alignItems: 'center',
-  },
-  offlineText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: ThemeColors.colorBlack,
-    marginBottom: 4,
-  },
-  offlineSubText: {
-    fontSize: 14,
-    color: ThemeColors.colorBlack,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 32,
-  },
-  emptyText: {
-    fontSize: 18,
-    color: ThemeColors.colorBlack,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  emptySubText: {
-    fontSize: 14,
-    color: ThemeColors.colorGray,
-    textAlign: 'center',
   },
   loadingText: {
     fontSize: 18,

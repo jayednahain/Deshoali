@@ -29,20 +29,11 @@ export const loadLocalVideosThunk = createAsyncThunk(
     try {
       console.log('[VideosSlice] Loading local videos from AsyncStorage');
       const localVideos = await LocalStorageService.getAllLocalVideos();
-
       if (localVideos && typeof localVideos === 'object') {
-        console.log(
-          `[VideosSlice] Loaded ${
-            Object.keys(localVideos).length
-          } local videos`,
-        );
         return localVideos;
       }
-
-      console.log('[VideosSlice] No local videos found');
       return {};
     } catch (error) {
-      console.error('[VideosSlice] Error loading local videos:', error);
       return rejectWithValue(error.message || 'Failed to load local videos');
     }
   },
@@ -503,14 +494,11 @@ const videoSlice = createSlice({
     builder
       // Fetch videos thunk
       .addCase(fetchVideosThunk.pending, state => {
-        console.log('XXXXXXXX video api pending');
         state.isLoading = true;
         state.isError = false;
         state.errorMessage = '';
       })
       .addCase(fetchVideosThunk.fulfilled, (state, action) => {
-        console.log('XXXXXXXX video api fulfilled');
-
         state.isLoading = false;
         state.isError = false;
         state.errorMessage = '';
@@ -521,49 +509,26 @@ const videoSlice = createSlice({
           Array.isArray(action.payload.data)
         ) {
           state.videos = action.payload.data;
-          console.log(
-            `[VideosSlice] Fetched ${action.payload.data.length} videos from API`,
-          );
         } else {
           state.videos = [];
-          console.warn('[VideosSlice] Invalid API response format');
         }
       })
       .addCase(fetchVideosThunk.rejected, (state, action) => {
-        console.log('XXXXXXXX video api rejected');
-
         state.isLoading = false;
         state.isError = true;
         state.errorMessage = action.error.message || 'Failed to fetch videos';
-        console.error(
-          '[VideosSlice] Failed to fetch videos:',
-          state.errorMessage,
-        );
       })
 
-      // Load local videos thunk
-      .addCase(loadLocalVideosThunk.pending, state => {
-        console.log('[VideosSlice] Loading local videos...');
-      })
+      .addCase(loadLocalVideosThunk.pending, state => {})
       .addCase(loadLocalVideosThunk.fulfilled, (state, action) => {
         if (action.payload && typeof action.payload === 'object') {
           state.localVideos = action.payload;
-          console.log(
-            `[VideosSlice] Loaded ${
-              Object.keys(action.payload).length
-            } local videos`,
-          );
         } else {
           state.localVideos = {};
-          console.log('[VideosSlice] No local videos loaded');
         }
       })
 
       .addCase(loadLocalVideosThunk.rejected, (state, action) => {
-        console.error(
-          '[VideosSlice] Failed to load local videos:',
-          action.payload,
-        );
         state.localVideos = {};
       })
 
