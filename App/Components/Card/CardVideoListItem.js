@@ -10,17 +10,6 @@ import { UtilityFunctions } from '../../UtilityFunctions/UtilityFunctions';
 import ButtonSquare from '../Button/ButtonSquare';
 import { Chip, ChipWarning } from '../Chip/Chip';
 
-// {
-//       "id": 2,
-//       "name": "গোপাল ভাঁড় বাংলা কার্টুনের ভিডিও",
-//       "filetype": "video/mp4",
-//       "filesize": "64557685",
-//       "file_duration": "1326.46",
-//       "description": "\"In this entertaining episode of Gopal Dada, Gopal once again showcases his wit and intelligence by helping Raja Krishna Chandra Roy handle Nawab Bahadur, earning high praise for his cleverness. Impressed and grateful, the Raja gifts Gopal 5 acres of land. However, the cunning Maha Mantri has been eyeing the land for himself and devises a devious plan to claim it. He visits Khambaji Raja and learns that the Raja’s daughter has left her husband and wishes to stay at her father’s house. Seizing the opportunity, the Mantri convinces Khambaji Raja to have his daughter marry Gopal, ensuring that Gopal would stay there forever. The episode unfolds with humor, clever schemes, and suspense, keeping viewers guessing whether the Mantri will succeed or if Gopal will outsmart him once again.\r\n\r\n\r\nShow Name: Gopal Bhar - গোপালভাঁড়\r\nDirected By: Sourav Mondal, Hansa Mondal\r\nWritten By: Hansa Mondal\r\nOriginal language: Bengali\r\nEpisode No: 873",
-//       "created_at": "2025-10-04T17:42:02.000000Z",
-//       "updated_at": "2025-10-04T17:42:02.000000Z"
-//     }
-
 export default function CardVideoListItem({ cardItem }) {
   const dispatch = useDispatch();
   const { i18n } = useAppLanguage();
@@ -192,6 +181,9 @@ export default function CardVideoListItem({ cardItem }) {
           status === 'FAILED' && styles.failedCardContainer,
           isCurrentlyDownloading && styles.downloadingCardContainer,
         ]}
+        onPress={() => {
+          // dispatch(showErrorModal('rrrr', 'asdasddad'));
+        }}
         activeOpacity={0.7}
       >
         <PlayButtonIcon />

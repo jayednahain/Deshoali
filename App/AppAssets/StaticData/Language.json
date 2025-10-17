@@ -142,5 +142,9 @@
   "loading_local_videos": {
     "english": "Loading your videos...",
     "bangla": "আপনার ভিডিওগুলি লোড করা হচ্ছে..."
+  },
+  "Download_in_Progress": {
+    "english": "Download in Progress",
+    "bangla": "ডাউনলোড চলছে"
   }
 }

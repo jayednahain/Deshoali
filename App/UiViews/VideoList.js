@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   FlatList,
+  RefreshControl,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -56,6 +57,9 @@ export default function VideoList() {
 
   // State to track server synchronization
   const [lastSyncKey, setLastSyncKey] = useState('');
+
+  // State for pull-to-refresh
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // App status effect - log when app becomes active
   useEffect(() => {
@@ -297,6 +301,37 @@ export default function VideoList() {
     dispatch,
   ]);
 
+  // Handle pull-to-refresh
+  const handleRefresh = useCallback(async () => {
+    if (!isOnline) {
+      return; // Don't refresh when offline
+    }
+
+    console.log('[VideoList] Pull-to-refresh triggered');
+    setIsRefreshing(true);
+
+    try {
+      // Reset state tracking to force fresh data
+      setLastMergeKey('');
+      setLastSyncKey('');
+
+      // Clear any existing error state
+      dispatch(resetVideosState());
+
+      // Fetch fresh videos from API
+      await dispatch(fetchVideosThunk()).unwrap();
+
+      // Re-load local videos to get latest status
+      dispatch(loadLocalVideosThunk());
+
+      console.log('[VideoList] Pull-to-refresh completed successfully');
+    } catch (error) {
+      console.error('[VideoList] Pull-to-refresh failed:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [isOnline, dispatch]);
+
   // Render functions
   const renderVideoItem = useCallback(({ item }) => {
     if (!item || item.id === undefined || item.id === null) {
@@ -337,9 +372,25 @@ export default function VideoList() {
         }}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContainer}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            colors={[ThemeColors.colorPrimary || '#007AFF']}
+            tintColor={ThemeColors.colorPrimary || '#007AFF'}
+            title="Refreshing videos..."
+            titleColor={ThemeColors.colorGray}
+          />
+        }
       />
     );
-  }, [isOnline, videosWithStatus, renderVideoItem]);
+  }, [
+    isOnline,
+    videosWithStatus,
+    renderVideoItem,
+    isRefreshing,
+    handleRefresh,
+  ]);
 
   // Handle offline mode - show only downloaded videos
   if (!isOnline) {
@@ -364,6 +415,16 @@ export default function VideoList() {
             keyExtractor={item => String(item.id)}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.listContainer}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={handleRefresh}
+                colors={[ThemeColors.colorPrimary || '#007AFF']}
+                tintColor={ThemeColors.colorPrimary || '#007AFF'}
+                title="Refreshing videos..."
+                titleColor={ThemeColors.colorGray}
+              />
+            }
           />
         ) : (
           <View style={styles.emptyContainer}>
