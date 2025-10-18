@@ -83,9 +83,17 @@ export const startAutoDownloadThunk = createAsyncThunk(
         }
       };
 
-      const onStatusChange = (videoId, status) => {
+      const onStatusChange = (videoId, status, localFilePath = null) => {
         if (typeof videoId === 'number' && status) {
-          dispatch(updateVideoStatus({ videoId, status }));
+          // Handle download completion with localFilePath
+          if (status === 'DOWNLOADED' && localFilePath) {
+            console.log(
+              `[VideosSlice] Download completed for video ${videoId} with file path: ${localFilePath}`,
+            );
+            dispatch(completeDownload({ videoId, status, localFilePath }));
+          } else {
+            dispatch(updateVideoStatus({ videoId, status }));
+          }
 
           // Handle download start/completion status changes
           if (status === 'DOWNLOADING') {
@@ -576,6 +584,18 @@ const videoSlice = createSlice({
       state.isSearching = false;
       console.log('[VideosSlice] Reset videos state');
     },
+
+    // Reset only API data, preserve local videos (for refresh)
+    resetApiVideosOnly: state => {
+      state.videos = [];
+      state.videosWithStatus = [];
+      state.isLoading = false;
+      state.isError = false;
+      state.errorMessage = '';
+      // Keep localVideos intact
+      // Keep search state intact
+      console.log('[VideosSlice] Reset API videos only, preserving local data');
+    },
   },
   extraReducers: builder => {
     builder
@@ -741,6 +761,7 @@ export const {
   removeFromDownloadQueue,
   completeDownload,
   resetVideosState,
+  resetApiVideosOnly,
   // Search actions
   setSearchQuery,
   setSearching,

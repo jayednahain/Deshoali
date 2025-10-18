@@ -11,6 +11,7 @@ import { loadAppConfigThunk } from '../Features/Config/appConfigSlice';
 import {
   fetchVideosThunk,
   loadLocalVideosThunk,
+  resetApiVideosOnly,
   resetVideosState,
   searchVideosThunk,
   serverSyncThunk,
@@ -142,7 +143,7 @@ export default function VideoList() {
         localVideos &&
         typeof localVideos === 'object' &&
         !isProcessing &&
-        videosWithStatus.length === 0 // Only merge if we don't have merged videos yet
+        (videosWithStatus.length === 0 || currentMergeKey !== lastMergeKey) // Merge if no videos OR data changed
       ) {
         try {
           setIsProcessing(true);
@@ -245,6 +246,36 @@ export default function VideoList() {
     // These are checked inside the effect condition
   ]);
 
+  // Periodically reload local videos when downloads are active to keep Redux state in sync
+  useEffect(() => {
+    let intervalId;
+
+    if (
+      currentDownload !== null ||
+      (videosWithStatus &&
+        videosWithStatus.some(v => v.status === 'DOWNLOADING'))
+    ) {
+      console.log(
+        '[VideoList] Starting periodic local videos reload - downloads active',
+      );
+
+      // Reload local videos every 3 seconds during downloads
+      intervalId = setInterval(() => {
+        console.log(
+          '[VideoList] Periodic reload of local videos during downloads',
+        );
+        dispatch(loadLocalVideosThunk());
+      }, 3000);
+    }
+
+    return () => {
+      if (intervalId) {
+        console.log('[VideoList] Stopping periodic local videos reload');
+        clearInterval(intervalId);
+      }
+    };
+  }, [currentDownload, videosWithStatus, dispatch]);
+
   // Auto-download trigger - when videos with status are ready and auto-download is enabled (optimized)
   useEffect(() => {
     const triggerAutoDownload = () => {
@@ -308,25 +339,30 @@ export default function VideoList() {
     setIsRefreshing(true);
 
     try {
-      // Reset state tracking to force fresh data
+      // Reset state tracking to force fresh data merge
       setLastMergeKey('');
       setLastSyncKey('');
 
       // Clear search state on refresh
       dispatch(setSearchQuery(''));
 
-      // Clear any existing error state
-      dispatch(resetVideosState());
+      // CRITICAL FIX: DON'T reset videos state completely - preserve local data
+      // Instead, only clear API videos and errors, keep local videos intact
+      console.log('[VideoList] Preserving local videos during refresh');
+      dispatch(resetApiVideosOnly());
 
-      // Fetch fresh videos from API
+      // Fetch fresh videos from API first
       await dispatch(fetchVideosThunk()).unwrap();
 
-      // Re-load local videos to get latest status
+      // Re-load local videos to ensure we have latest metadata
       dispatch(loadLocalVideosThunk());
 
       console.log('[VideoList] Pull-to-refresh completed successfully');
     } catch (error) {
       console.error('[VideoList] Pull-to-refresh failed:', error);
+
+      // On error, still reload local videos to ensure we have the data
+      dispatch(loadLocalVideosThunk());
     } finally {
       setIsRefreshing(false);
     }

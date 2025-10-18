@@ -69,6 +69,7 @@ export const mergeVideosWithLocalStatus = async (apiVideos, localVideos) => {
         if (localVideo) {
           console.log(
             `[VideoComparison] Processing local video ${videoId} with status: ${localVideo.status}`,
+            `localFilePath: ${localVideo.localFilePath || 'null'}`,
           );
 
           // Copy local metadata

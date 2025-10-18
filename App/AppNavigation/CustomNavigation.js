@@ -1,5 +1,6 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
+import VideoDetails from '../UiViews/VideoDetails';
 import VideoList from '../UiViews/VideoList';
 import { useAppLanguage } from './../Hooks/useAppLagnuage';
 
@@ -34,6 +35,13 @@ const AppNavigation = () => {
           options={({ navigation }) =>
             navigationOption(navigation, 'Video List')
           }
+        />
+        <Stack.Screen
+          name="VideoDetails"
+          component={VideoDetails}
+          options={{
+            headerShown: false, // We'll handle the header in VideoDetails component
+          }}
         />
       </Stack.Navigator>
     </NavigationContainer>

@@ -555,13 +555,25 @@ class DownloadManager {
   }
 
   /**
-   * Update status via callback
+   * Update status via callback (enhanced to include localFilePath for DOWNLOADED status)
    * @private
    */
-  _updateStatus(videoId, status) {
+  async _updateStatus(videoId, status) {
     try {
       if (this.statusCallback && typeof this.statusCallback === 'function') {
-        this.statusCallback(videoId, status);
+        // For DOWNLOADED status, also pass the localFilePath
+        if (status === 'DOWNLOADED') {
+          const filePath = await FileSystemService.getVideoFilePath(
+            videoId,
+            'mp4',
+          );
+          console.log(
+            `${this.logPrefix} Download completed for video ${videoId}, file path: ${filePath}`,
+          );
+          this.statusCallback(videoId, status, filePath);
+        } else {
+          this.statusCallback(videoId, status);
+        }
       }
     } catch (error) {
       console.error(`${this.logPrefix} Error in status callback:`, error);

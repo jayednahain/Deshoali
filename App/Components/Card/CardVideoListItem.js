@@ -1,3 +1,4 @@
+import { useNavigation } from '@react-navigation/native';
 import { useState } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Collapsible from 'react-native-collapsible';
@@ -12,6 +13,7 @@ import { Chip, ChipWarning } from '../Chip/Chip';
 
 export default function CardVideoListItem({ cardItem }) {
   const dispatch = useDispatch();
+  const navigation = useNavigation();
   const { i18n } = useAppLanguage();
 
   // State for expand/collapse
@@ -42,6 +44,25 @@ export default function CardVideoListItem({ cardItem }) {
 
   // Check if this video is currently being downloaded
   const isCurrentlyDownloading = currentDownload === id;
+
+  // Handle navigation to video details page
+  const handleVideoPress = () => {
+    // Only allow navigation if video is downloaded
+    if (status !== 'DOWNLOADED') {
+      Alert.alert(
+        i18n('video_not_available') || 'Video Not Available',
+        i18n('video_not_downloaded') ||
+          'This video is not downloaded yet. Please download it first to play.',
+        [{ text: i18n('ok') || 'OK' }],
+      );
+      return;
+    }
+
+    // Navigate to video details with video data
+    navigation.navigate('VideoDetails', {
+      videoData: cardItem,
+    });
+  };
 
   // Handle retry download - keep external as user specified
   const handleRetryDownload = () => {
@@ -182,7 +203,7 @@ export default function CardVideoListItem({ cardItem }) {
           isCurrentlyDownloading && styles.downloadingCardContainer,
         ]}
         onPress={() => {
-          // dispatch(showErrorModal('rrrr', 'asdasddad'));
+          handleVideoPress();
         }}
         activeOpacity={0.7}
       >
