@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
     borderColor: '#4DABF7',
   },
   middleSection: {
-    backgroundColor: 'red',
+    // backgroundColor: 'red',
     width: '70%',
     paddingHorizontal: 8,
   },
@@ -266,9 +266,9 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   chipContainer: {
-    backgroundColor: 'yellow',
+    // backgroundColor: 'yellow',
     flexDirection: 'row',
-    // flexWrap: 'wrap',
+    flexWrap: 'wrap',
     marginTop: 8,
   },
   downloadingChip: {
@@ -278,7 +278,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#51CF66',
   },
   retryButton: {
-    backgroundColor: '#FF6B6B',
+    // backgroundColor: '#FF6B6B',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,

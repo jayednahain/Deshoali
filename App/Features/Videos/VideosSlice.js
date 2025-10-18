@@ -13,6 +13,10 @@ const initialState = {
   isLoading: false,
   isError: false,
   errorMessage: '',
+  // Search functionality
+  searchQuery: '', // Current search query
+  searchResults: [], // Filtered search results
+  isSearching: false, // Loading state for search
 };
 
 export const fetchVideosThunk = createAsyncThunk(
@@ -283,6 +287,52 @@ export const serverSyncThunk = createAsyncThunk(
   },
 );
 
+// Search videos thunk
+export const searchVideosThunk = createAsyncThunk(
+  'Videos/searchVideos',
+  async (searchQuery, { getState, dispatch, rejectWithValue }) => {
+    try {
+      console.log(`[VideosSlice] Searching for: "${searchQuery}"`);
+
+      // Set searching state
+      dispatch(setSearching(true));
+      dispatch(setSearchQuery(searchQuery));
+
+      // Get current videos with status from state
+      const state = getState();
+      const { videosWithStatus } = state.videosStore;
+      console.log('current videos:: ', JSON.stringify(videosWithStatus));
+
+      if (!Array.isArray(videosWithStatus) || videosWithStatus.length === 0) {
+        console.log('[VideosSlice] No videos to search');
+        return [];
+      }
+
+      // Simulate loading delay for better UX
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Perform search - filter primarily by title (name field)
+      const query = searchQuery.toLowerCase().trim();
+      const searchResults = videosWithStatus.filter(video => {
+        if (!video) return false;
+
+        // Search in name (title) - primary search field
+        if (video.name && video.name.toLowerCase().includes(query)) {
+          return true;
+        }
+
+        return false;
+      });
+
+      console.log(`[VideosSlice] Found ${searchResults.length} search results`);
+      return searchResults;
+    } catch (error) {
+      console.error('[VideosSlice] Search failed:', error);
+      return rejectWithValue(error.message || 'Search failed');
+    }
+  },
+);
+
 const videoSlice = createSlice({
   name: 'videos',
   initialState: initialState,
@@ -477,6 +527,39 @@ const videoSlice = createSlice({
       );
     },
 
+    // Search functionality
+    setSearchQuery: (state, action) => {
+      const query = action.payload || '';
+      state.searchQuery = query;
+
+      if (query.trim() === '') {
+        // Clear search - show all videos
+        state.searchResults = [];
+        console.log('[VideosSlice] Cleared search');
+      } else {
+        console.log(`[VideosSlice] Set search query: "${query}"`);
+      }
+    },
+
+    setSearching: (state, action) => {
+      state.isSearching = action.payload || false;
+      console.log(`[VideosSlice] Set searching: ${state.isSearching}`);
+    },
+
+    setSearchResults: (state, action) => {
+      if (Array.isArray(action.payload)) {
+        state.searchResults = action.payload;
+        state.isSearching = false;
+        console.log(
+          `[VideosSlice] Set ${action.payload.length} search results`,
+        );
+      } else {
+        state.searchResults = [];
+        state.isSearching = false;
+        console.log('[VideosSlice] Cleared search results');
+      }
+    },
+
     // Reset videos state
     resetVideosState: state => {
       state.videos = [];
@@ -487,6 +570,10 @@ const videoSlice = createSlice({
       state.isLoading = false;
       state.isError = false;
       state.errorMessage = '';
+      // Reset search state
+      state.searchQuery = '';
+      state.searchResults = [];
+      state.isSearching = false;
       console.log('[VideosSlice] Reset videos state');
     },
   },
@@ -621,6 +708,24 @@ const videoSlice = createSlice({
         );
         // Don't change error state as this is a background operation
         // Main app functionality should continue working
+      })
+
+      // Search videos thunk
+      .addCase(searchVideosThunk.pending, (state, action) => {
+        state.isSearching = true;
+        console.log('[VideosSlice] Search started');
+      })
+      .addCase(searchVideosThunk.fulfilled, (state, action) => {
+        state.isSearching = false;
+        state.searchResults = action.payload || [];
+        console.log(
+          `[VideosSlice] Search completed with ${state.searchResults.length} results`,
+        );
+      })
+      .addCase(searchVideosThunk.rejected, (state, action) => {
+        state.isSearching = false;
+        state.searchResults = [];
+        console.error('[VideosSlice] Search failed:', action.payload);
       });
   },
 });
@@ -636,6 +741,10 @@ export const {
   removeFromDownloadQueue,
   completeDownload,
   resetVideosState,
+  // Search actions
+  setSearchQuery,
+  setSearching,
+  setSearchResults,
 } = videoSlice.actions;
 
 // Export reducer

@@ -2,13 +2,19 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { ThemeColors } from '../AppTheme';
-import { OfflineHeader, VideoListRenderer } from '../Components';
+import {
+  OfflineHeader,
+  VideoListRenderer,
+  VideoSearchBar,
+} from '../Components';
 import { loadAppConfigThunk } from '../Features/Config/appConfigSlice';
 import {
   fetchVideosThunk,
   loadLocalVideosThunk,
   resetVideosState,
+  searchVideosThunk,
   serverSyncThunk,
+  setSearchQuery,
   setVideosWithStatus,
   startAutoDownloadThunk,
 } from '../Features/Videos/VideosSlice';
@@ -36,6 +42,10 @@ export default function VideoList() {
     isLoading = false,
     isError = false,
     errorMessage = '',
+    // Search state
+    searchQuery = '',
+    searchResults = [],
+    isSearching = false,
   } = videosState || {};
 
   const { autoDownloadEnabled = true, downloadOnWifiOnly = true } =
@@ -62,6 +72,12 @@ export default function VideoList() {
   const downloadedCount = useMemo(() => {
     return downloadedVideos.length;
   }, [downloadedVideos]);
+
+  // Determine which videos to show based on search state
+  const displayVideos = useMemo(() => {
+    // If there's a search query, show search results, otherwise show all videos
+    return searchQuery.trim() ? searchResults : videosWithStatus;
+  }, [searchQuery, searchResults, videosWithStatus]);
 
   // App status effect - log when app becomes active
   useEffect(() => {
@@ -296,6 +312,9 @@ export default function VideoList() {
       setLastMergeKey('');
       setLastSyncKey('');
 
+      // Clear search state on refresh
+      dispatch(setSearchQuery(''));
+
       // Clear any existing error state
       dispatch(resetVideosState());
 
@@ -313,25 +332,67 @@ export default function VideoList() {
     }
   }, [isOnline, dispatch]);
 
+  // Handle search functionality
+  const handleSearch = useCallback(
+    async query => {
+      if (!isOnline) {
+        console.log('[VideoList] Search disabled - offline mode');
+        return;
+      }
+
+      if (query.trim() === '') {
+        // Clear search
+        dispatch(setSearchQuery(''));
+        return;
+      }
+
+      try {
+        console.log(`[VideoList] Searching for: "${query}"`);
+        await dispatch(searchVideosThunk(query)).unwrap();
+      } catch (error) {
+        console.error('[VideoList] Search failed:', error);
+      }
+    },
+    [dispatch, isOnline],
+  );
+
   // Simplified render function using new VideoListRenderer component
   const renderVideoList = useCallback(() => {
     return (
-      <VideoListRenderer
-        videos={videosWithStatus}
-        isOnline={isOnline}
-        onRefresh={handleRefresh}
-        isRefreshing={isRefreshing}
-      />
+      <View style={styles.container}>
+        {/* Search bar at the top */}
+        <VideoSearchBar
+          onSearch={handleSearch}
+          isSearching={isSearching}
+          placeholder="Search videos by title (min 3 chars)..."
+        />
+
+        {/* Video list */}
+        <VideoListRenderer
+          videos={displayVideos}
+          isOnline={isOnline}
+          onRefresh={handleRefresh}
+          isRefreshing={isRefreshing}
+        />
+      </View>
     );
-  }, [videosWithStatus, isOnline, handleRefresh, isRefreshing]);
+  }, [
+    displayVideos,
+    isOnline,
+    handleRefresh,
+    isRefreshing,
+    handleSearch,
+    isSearching,
+  ]);
 
   // Handle offline mode - show only downloaded videos
   if (!isOnline) {
     return (
       <View style={styles.container}>
         <OfflineHeader downloadedCount={downloadedCount} />
+        {/* Search disabled in offline mode */}
         <VideoListRenderer
-          videos={videosWithStatus}
+          videos={downloadedVideos}
           isOnline={isOnline}
           onRefresh={handleRefresh}
           isRefreshing={isRefreshing}
@@ -377,7 +438,7 @@ export default function VideoList() {
   }
 
   // Main content
-  return <View style={styles.container}>{renderVideoList()}</View>;
+  return renderVideoList();
 }
 
 const styles = StyleSheet.create({

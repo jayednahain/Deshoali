@@ -7,5 +7,6 @@
 // New optimized components
 import OfflineHeader from './Header/OfflineHeader';
 import VideoListRenderer from './List/VideoListRenderer';
+import VideoSearchBar from './Search/VideoSearchBar';
 
-export { OfflineHeader, VideoListRenderer };
+export { OfflineHeader, VideoListRenderer, VideoSearchBar };
