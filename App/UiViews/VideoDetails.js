@@ -23,12 +23,14 @@ export default function VideoDetails() {
 
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Validate video data
+  // Enhanced video data validation with better error handling
   useEffect(() => {
     if (!videoData) {
+      console.warn('[VideoDetails] No video data provided');
       Alert.alert(
         i18n('error') || 'Error',
-        i18n('invalid_video_data') || 'Invalid video data',
+        i18n('invalid_video_data') ||
+          'Invalid video data provided. Please try again.',
         [
           {
             text: i18n('ok') || 'OK',
@@ -39,12 +41,51 @@ export default function VideoDetails() {
       return;
     }
 
-    // Check if video is downloaded and can be played
+    // Enhanced validation for video readiness
+    console.log('[VideoDetails] Video data validation:', {
+      id: videoData.id,
+      name: videoData.name,
+      status: videoData.status,
+      localFilePath: videoData.localFilePath,
+    });
+
+    // Check if video is downloaded and has valid file path
     if (videoData.status !== 'DOWNLOADED') {
+      let errorMessage =
+        'This video is not downloaded yet. Please download it first to play.';
+      let errorTitle = 'Video Not Available';
+
+      if (videoData.status === 'DOWNLOADING') {
+        errorTitle = 'Download In Progress';
+        errorMessage =
+          'This video is currently downloading. Please wait for download to complete.';
+      } else if (videoData.status === 'FAILED') {
+        errorTitle = 'Download Failed';
+        errorMessage = 'Video download failed. Please try downloading again.';
+      }
+
       Alert.alert(
-        i18n('video_not_available') || 'Video Not Available',
-        i18n('video_not_downloaded') ||
-          'This video is not downloaded yet. Please download it first to play.',
+        i18n('video_not_available') || errorTitle,
+        i18n('video_not_downloaded') || errorMessage,
+        [
+          {
+            text: i18n('ok') || 'OK',
+            onPress: () => navigation.goBack(),
+          },
+        ],
+      );
+      return;
+    }
+
+    // Additional check for local file path
+    if (!videoData.localFilePath) {
+      console.warn(
+        '[VideoDetails] Video marked as DOWNLOADED but no localFilePath',
+      );
+      Alert.alert(
+        i18n('error') || 'Playback Error',
+        i18n('video_file_missing') ||
+          'Video file not found. Please try downloading again.',
         [
           {
             text: i18n('ok') || 'OK',
@@ -73,13 +114,15 @@ export default function VideoDetails() {
     return () => backHandler.remove();
   }, [isFullscreen]);
 
-  // Handle fullscreen toggle
+  // Enhanced fullscreen toggle with logging
   const handleFullscreenToggle = useCallback(fullscreen => {
+    console.log('[VideoDetails] Fullscreen toggle:', fullscreen);
     setIsFullscreen(fullscreen);
   }, []);
 
-  // Handle navigation back
+  // Enhanced navigation back with better fullscreen handling
   const handleGoBack = useCallback(() => {
+    console.log('[VideoDetails] Back pressed, fullscreen:', isFullscreen);
     if (isFullscreen) {
       setIsFullscreen(false);
     } else {
@@ -87,8 +130,34 @@ export default function VideoDetails() {
     }
   }, [isFullscreen, navigation]);
 
-  if (!videoData || videoData.status !== 'DOWNLOADED') {
-    return null; // Will be handled by useEffect alerts
+  // Enhanced validation with fallback UI
+  if (
+    !videoData ||
+    videoData.status !== 'DOWNLOADED' ||
+    !videoData.localFilePath
+  ) {
+    return (
+      <View style={styles.container}>
+        <StatusBar
+          backgroundColor={ThemeColors.colorBlack}
+          barStyle="light-content"
+        />
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>
+            {i18n('video_loading_error') ||
+              'Unable to load video. Please try again.'}
+          </Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.retryButtonText}>
+              {i18n('go_back') || 'Go Back'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
   }
 
   const {
@@ -122,7 +191,7 @@ export default function VideoDetails() {
         </View>
       )}
 
-      {/* Video Player */}
+      {/* Enhanced Video Player Container */}
       <View
         style={[
           styles.playerContainer,
@@ -134,6 +203,16 @@ export default function VideoDetails() {
           onFullscreenToggle={handleFullscreenToggle}
           isFullscreen={isFullscreen}
         />
+
+        {/* Debug overlay for development */}
+        {__DEV__ && (
+          <View style={styles.debugOverlay}>
+            <Text style={styles.debugText}>
+              Status: {videoData.status} | File:{' '}
+              {videoData.localFilePath ? 'OK' : 'Missing'}
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* Video Information - Hide in fullscreen */}
@@ -154,6 +233,20 @@ export default function VideoDetails() {
               {i18n('size') || 'Size'}: {(filesize / (1024 * 1024)).toFixed(1)}{' '}
               MB
             </Text>
+            <Text style={styles.metaText}>
+              {i18n('status') || 'Status'}: {videoData.status}
+            </Text>
+            {videoData.filetype && (
+              <Text style={styles.metaText}>
+                {i18n('format') || 'Format'}: {videoData.filetype}
+              </Text>
+            )}
+            {videoData.downloadedAt && (
+              <Text style={styles.metaText}>
+                {i18n('downloaded') || 'Downloaded'}:{' '}
+                {new Date(videoData.downloadedAt).toLocaleDateString()}
+              </Text>
+            )}
           </View>
         </View>
       )}
@@ -228,5 +321,44 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: ThemeColors.colorGray,
     marginBottom: 8,
+  },
+  // Enhanced error handling styles
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 16,
+    color: ThemeColors.colorRed || '#FF0000',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  retryButton: {
+    backgroundColor: ThemeColors.colorPrimary || '#007AFF',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: ThemeColors.colorWhite,
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  // Debug overlay for development
+  debugOverlay: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    right: 10,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    padding: 8,
+    borderRadius: 4,
+  },
+  debugText: {
+    color: ThemeColors.colorWhite,
+    fontSize: 12,
+    fontFamily: 'monospace',
   },
 });
