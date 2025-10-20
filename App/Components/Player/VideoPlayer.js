@@ -1,5 +1,11 @@
 import Slider from '@react-native-community/slider';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   Alert,
   Animated,
@@ -40,6 +46,18 @@ export default function VideoPlayer({
   console.log('[VideoPlayer] Video data:', JSON.stringify(videoData, null, 2));
   console.log('[VideoPlayer] Local file path:', localFilePath);
 
+  // Video source validation
+  const videoSource = useMemo(() => {
+    if (!localFilePath) {
+      console.warn('[VideoPlayer] No local file path provided');
+      return null;
+    }
+
+    const source = { uri: `file://${localFilePath}` };
+    console.log('[VideoPlayer] Video source:', source);
+    return source;
+  }, [localFilePath]);
+
   // Check file existence
   useEffect(() => {
     const checkFile = async () => {
@@ -60,10 +78,6 @@ export default function VideoPlayer({
     };
     checkFile();
   }, [localFilePath]);
-
-  // Validate video source - Add file:// prefix for Android compatibility
-  const videoSource = localFilePath ? { uri: `file://${localFilePath}` } : null;
-  console.log('[VideoPlayer] Video source:', videoSource);
 
   // Auto-hide controls
   const startHideControlsTimer = useCallback(() => {
@@ -165,14 +179,44 @@ export default function VideoPlayer({
       console.error('[VideoPlayer] Video error:', error);
       setIsLoading(false);
 
+      // Determine error type for better user message
+      let errorMessage = 'Failed to load video. Please try again.';
+      let errorTitle = 'Playback Error';
+
+      if (error && error.error) {
+        const errorStr = error.error.errorString?.toLowerCase() || '';
+        const errorCode = error.error.errorCode || '';
+
+        console.log('[VideoPlayer] Error details:', {
+          errorString: error.error.errorString,
+          errorCode: error.error.errorCode,
+          cause: error.error.cause,
+        });
+
+        if (
+          errorStr.includes('mediacodevideorenderer') ||
+          errorStr.includes('decoding_failed') ||
+          errorStr.includes('codec') ||
+          errorCode.includes('24003')
+        ) {
+          errorTitle = 'Video Format Error';
+          errorMessage =
+            'This video format is not supported on your device. The video may be corrupted or encoded in an unsupported format (H.265/HEVC). Please try another video or contact support.';
+        } else if (errorStr.includes('network') || errorStr.includes('io')) {
+          errorTitle = 'Connection Error';
+          errorMessage =
+            'Failed to load video file. Check your connection and try again.';
+        }
+      }
+
       Alert.alert(
-        i18n('error') || 'Playback Error',
-        i18n('video_playback_error') ||
-          'Failed to load video. This could be due to unsupported format or corrupted file.',
+        i18n('error') || errorTitle,
+        i18n('video_playback_error') || errorMessage,
         [
           {
             text: i18n('retry') || 'Retry',
             onPress: () => {
+              console.log('[VideoPlayer] Retrying video playback');
               setIsLoading(true);
               // Force reload by resetting video component
               if (videoRef.current) {
@@ -252,6 +296,20 @@ export default function VideoPlayer({
             // Audio handling
             ignoreSilentSwitch="ignore"
             mixWithOthers="mix"
+            // Codec compatibility settings for MediaCodecVideoRenderer errors
+            useTextureView={false}
+            bufferConfig={{
+              minBufferMs: 15000,
+              maxBufferMs: 50000,
+              bufferForPlaybackMs: 2500,
+              bufferForPlaybackAfterRebufferMs: 5000,
+            }}
+            // Additional codec settings
+            controls={false}
+            reportBandwidth={true}
+            selectedVideoTrack={{
+              type: 'auto',
+            }}
           />
 
           {/* Loading overlay */}
