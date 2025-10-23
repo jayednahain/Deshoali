@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Button, StyleSheet, View } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { ThemeColors } from '../AppTheme';
 import {
@@ -37,8 +37,6 @@ import {
   updateVideoStatus,
 } from '../Features/Videos/VideosSlice';
 import { useAppStatus } from '../Hooks/useAppStatus';
-import { useNetworkStatus } from '../Hooks/useNetworkStatus';
-import AppStore from '../ReduxStore/store';
 import DownloadManager from '../Service/DownloadManager';
 import FileSystemService from '../Service/FileSystemService';
 import * as VideoComparison from '../Utils/VideoComparison';
@@ -46,22 +44,37 @@ import * as VideoComparison from '../Utils/VideoComparison';
 /**
  * VideoListNew - Modal-Centric Download Implementation
  *
- * Key Features:
- * - CustomLoader during initialization and API calls
- * - DownloadingProcessModal for download progress (cannot be dismissed)
- * - BottomButtonSectionWithText for incomplete downloads
- * - Real-time progress updates via DownloadManager callbacks
- * - Automatic modal hide when all downloads complete
- * - Error handling with retry functionality
+ * REFACTORED VERSION:
+ * - Fixed all dependency arrays
+ * - Consolidated completion check logic
+ * - Using useRef for tracking instead of state
+ * - Using useSelector consistently
+ * - Removed race conditions
  */
 export default function VideoListNew() {
   const dispatch = useDispatch();
-  const { isOnline } = useNetworkStatus();
+  // let [isOnline, setIsOnline] = useState(false);
+  // const { isOnline } = useNetworkStatus();
+  // let isOnline = false;
   const { appStatus } = useAppStatus();
+
+  let [isOnline, setIsOnline] = useState(true);
+  // useEffect(() => {
+  //   setTimeout(() => {
+  //     setIsOnline(true);
+
+  //     setTimeout(() => {
+  //       setIsOnline(false);
+  //     }, 4000);
+  //   }, 2000);
+  // }, [isOnline]);
 
   // Redux state
   const videosState = useSelector(state => state.videosStore);
   const appConfig = useSelector(state => state.appConfig);
+  const downloadingProcessModal = useSelector(
+    state => state.modalStore?.downloadingProcessModal,
+  );
 
   const {
     videos = [],
@@ -80,13 +93,16 @@ export default function VideoListNew() {
 
   // Local state
   const [isInitialized, setIsInitialized] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [showLoader, setShowLoader] = useState(false);
   const [showBottomWarning, setShowBottomWarning] = useState(false);
   const [pendingVideosCount, setPendingVideosCount] = useState(0);
-  const [lastMergeKey, setLastMergeKey] = useState('');
-  const [lastSyncKey, setLastSyncKey] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Refs for tracking (prevents unnecessary re-renders)
+  const lastMergeKeyRef = useRef('');
+  const lastSyncKeyRef = useRef('');
+  const isProcessingRef = useRef(false);
+  const downloadManagerInitialized = useRef(false);
 
   // Memoized values
   const downloadedVideos = useMemo(() => {
@@ -101,14 +117,62 @@ export default function VideoListNew() {
     return searchQuery.trim() ? searchResults : videosWithStatus;
   }, [searchQuery, searchResults, videosWithStatus]);
 
-  // App status logging
+  const pendingVideos = useMemo(() => {
+    return videosWithStatus.filter(
+      v =>
+        v.status === 'NEW' ||
+        v.status === 'FAILED' ||
+        v.status === 'DOWNLOADING',
+    );
+  }, [videosWithStatus]);
+
+  // ====================
+  // CONSOLIDATED COMPLETION CHECK
+  // ====================
+  const checkAndHideModalIfComplete = useCallback(() => {
+    if (!downloadingProcessModal?.visible) {
+      return;
+    }
+
+    if (!videosWithStatus || videosWithStatus.length === 0) {
+      return;
+    }
+
+    const pending = videosWithStatus.filter(
+      v =>
+        v.status === 'NEW' ||
+        v.status === 'FAILED' ||
+        v.status === 'DOWNLOADING',
+    );
+
+    const completed = videosWithStatus.filter(v => v.status === 'DOWNLOADED');
+
+    console.log(
+      `[VideoListNew] 🔍 COMPLETION CHECK - Pending: ${pending.length}, Downloaded: ${completed.length}`,
+    );
+
+    // If no pending videos and we have completed videos, hide modal
+    if (pending.length === 0 && completed.length > 0) {
+      console.log('[VideoListNew] ✨ ALL DOWNLOADS COMPLETE! HIDING MODAL...');
+
+      dispatch(hideDownloadingProcessModal());
+      dispatch(setDownloadingInModal(false));
+      dispatch(resetDownloadTracking());
+    }
+  }, [videosWithStatus, downloadingProcessModal, dispatch]);
+
+  // ====================
+  // useEffect 1: App status logging
+  // ====================
   useEffect(() => {
     if (appStatus) {
       console.log('[VideoListNew] App status changed:', appStatus);
     }
   }, [appStatus]);
 
-  // Initialize app - show loader
+  // ====================
+  // useEffect 2: Initialize app
+  // ====================
   useEffect(() => {
     const initializeApp = async () => {
       try {
@@ -129,7 +193,9 @@ export default function VideoListNew() {
     }
   }, [dispatch, isInitialized]);
 
-  // Fetch API videos when online
+  // ====================
+  // useEffect 3: Fetch API videos when online
+  // ====================
   useEffect(() => {
     if (
       isOnline &&
@@ -140,31 +206,66 @@ export default function VideoListNew() {
     ) {
       dispatch(fetchVideosThunk());
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOnline, isInitialized, dispatch]);
+  }, [isOnline, isInitialized, isLoading, videos.length, isError, dispatch]);
 
-  // Merge videos with local status - hide loader after merge
+  // ====================
+  // useEffect 4: Merge videos with local status
+  // ====================
   useEffect(() => {
     const mergeVideos = async () => {
       const currentMergeKey = `${videos.length}-${
         Object.keys(localVideos || {}).length
       }-${videosWithStatus.length}`;
 
-      if (currentMergeKey === lastMergeKey) {
+      if (currentMergeKey === lastMergeKeyRef.current) {
         return;
       }
 
+      // OFFLINE MODE: Load local videos only
+      if (
+        !isOnline &&
+        localVideos &&
+        Object.keys(localVideos).length > 0 &&
+        videosWithStatus.length === 0 &&
+        !isProcessingRef.current
+      ) {
+        try {
+          isProcessingRef.current = true;
+          console.log('[VideoListNew] OFFLINE MODE - Loading local videos...');
+
+          const localVideosList = Object.values(localVideos).map(video => ({
+            ...video,
+            status: 'DOWNLOADED',
+          }));
+
+          dispatch(setVideosWithStatus(localVideosList));
+          lastMergeKeyRef.current = currentMergeKey;
+          setShowLoader(false);
+          console.log(
+            `[VideoListNew] OFFLINE: Loaded ${localVideosList.length} local videos`,
+          );
+        } catch (error) {
+          console.error('[VideoListNew] Offline merge error:', error);
+          setShowLoader(false);
+        } finally {
+          isProcessingRef.current = false;
+        }
+        return;
+      }
+
+      // ONLINE MODE: Merge API videos with local status
       if (
         videos &&
         videos.length > 0 &&
         localVideos &&
         typeof localVideos === 'object' &&
-        !isProcessing &&
-        (videosWithStatus.length === 0 || currentMergeKey !== lastMergeKey)
+        !isProcessingRef.current &&
+        (videosWithStatus.length === 0 ||
+          currentMergeKey !== lastMergeKeyRef.current)
       ) {
         try {
-          setIsProcessing(true);
-          console.log('[VideoListNew] Merging videos...');
+          isProcessingRef.current = true;
+          console.log('[VideoListNew] ONLINE MODE - Merging videos...');
 
           const mergedVideos = await VideoComparison.mergeVideosWithLocalStatus(
             videos,
@@ -177,9 +278,11 @@ export default function VideoListNew() {
             mergedVideos.length > 0
           ) {
             dispatch(setVideosWithStatus(mergedVideos));
-            setLastMergeKey(currentMergeKey);
-            setShowLoader(false); // Hide loader after merge
-            console.log(`[VideoListNew] Merged ${mergedVideos.length} videos`);
+            lastMergeKeyRef.current = currentMergeKey;
+            setShowLoader(false);
+            console.log(
+              `[VideoListNew] ONLINE: Merged ${mergedVideos.length} videos`,
+            );
           } else {
             setShowLoader(false);
           }
@@ -187,21 +290,22 @@ export default function VideoListNew() {
           console.error('[VideoListNew] Merge error:', error);
           setShowLoader(false);
         } finally {
-          setIsProcessing(false);
+          isProcessingRef.current = false;
         }
       }
     };
 
     mergeVideos();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videos, localVideos, dispatch]);
+  }, [videos, localVideos, videosWithStatus.length, isOnline, dispatch]);
 
-  // Server synchronization
+  // ====================
+  // useEffect 5: Server synchronization (2s delay)
+  // ====================
   useEffect(() => {
     const performServerSync = async () => {
       const currentSyncKey = `${videos.length}-${videosWithStatus.length}`;
 
-      if (currentSyncKey === lastSyncKey) {
+      if (currentSyncKey === lastSyncKeyRef.current) {
         return;
       }
 
@@ -212,7 +316,7 @@ export default function VideoListNew() {
         videosWithStatus.length > 0 &&
         localVideos &&
         typeof localVideos === 'object' &&
-        !isProcessing &&
+        !isProcessingRef.current &&
         isOnline
       ) {
         try {
@@ -226,7 +330,7 @@ export default function VideoListNew() {
               },
             }),
           );
-          setLastSyncKey(currentSyncKey);
+          lastSyncKeyRef.current = currentSyncKey;
         } catch (error) {
           console.error('[VideoListNew] Server sync failed:', error);
         }
@@ -235,10 +339,11 @@ export default function VideoListNew() {
 
     const timeoutId = setTimeout(performServerSync, 2000);
     return () => clearTimeout(timeoutId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videos, videosWithStatus, localVideos, isOnline, dispatch]);
 
-  // Periodic reload during downloads
+  // ====================
+  // useEffect 6: Periodic reload during downloads (3s interval)
+  // ====================
   useEffect(() => {
     let intervalId;
 
@@ -259,50 +364,125 @@ export default function VideoListNew() {
     };
   }, [currentDownload, videosWithStatus, dispatch]);
 
-  // NEW: Backup completion check - monitors videosWithStatus changes
+  // ====================
+  // useEffect 7: Backup completion check (monitors videosWithStatus changes)
+  // ====================
   useEffect(() => {
-    // Check if modal is visible
-    const modalState = AppStore.getState().modalStore?.downloadingProcessModal;
-
-    if (!modalState?.visible) {
-      return; // Modal not visible, nothing to check
+    if (!downloadingProcessModal?.visible) {
+      return;
     }
 
-    // Check if we have videos
     if (!videosWithStatus || videosWithStatus.length === 0) {
       return;
     }
 
-    // Count pending videos
-    const pendingVideos = videosWithStatus.filter(
-      v =>
-        v.status === 'NEW' ||
-        v.status === 'FAILED' ||
-        v.status === 'DOWNLOADING',
-    );
-
-    const completedVideos = videosWithStatus.filter(
-      v => v.status === 'DOWNLOADED',
-    );
+    const pending = pendingVideos.length;
+    const completed = downloadedVideos.length;
 
     console.log(
-      `[VideoListNew] 🔄 BACKUP CHECK - Pending: ${pendingVideos.length}, Downloaded: ${completedVideos.length}`,
+      `[VideoListNew] 🔄 BACKUP CHECK - Pending: ${pending}, Downloaded: ${completed}`,
     );
 
     // If no pending videos and modal is still visible, hide it
-    if (pendingVideos.length === 0 && completedVideos.length > 0) {
+    if (pending === 0 && completed > 0) {
       console.log(
         '[VideoListNew] 🚨 BACKUP CHECK TRIGGERED - Hiding modal now!',
       );
+
       setTimeout(() => {
         dispatch(hideDownloadingProcessModal());
         dispatch(setDownloadingInModal(false));
         dispatch(resetDownloadTracking());
       }, 500);
     }
-  }, [videosWithStatus, dispatch]); // Runs whenever videosWithStatus changes
+  }, [
+    videosWithStatus,
+    downloadingProcessModal,
+    pendingVideos.length,
+    downloadedVideos.length,
+    dispatch,
+  ]);
 
-  // Modal-based auto-download
+  // ====================
+  // useEffect 8: Setup download manager callbacks
+  // ====================
+  useEffect(() => {
+    if (downloadManagerInitialized.current) {
+      return;
+    }
+
+    const downloadManager = DownloadManager.getInstance();
+
+    // Modal callback - real-time progress updates
+    downloadManager.setModalCallback(
+      (videoName, progress, totalVideos, completedVideos) => {
+        const update = {};
+        if (videoName !== null && videoName !== undefined) {
+          update.currentVideoName = videoName;
+        }
+        if (progress !== null && progress !== undefined) {
+          update.currentVideoProgress = progress;
+        }
+        if (totalVideos !== null && totalVideos !== undefined) {
+          update.totalVideos = totalVideos;
+        }
+        if (completedVideos !== null && completedVideos !== undefined) {
+          update.completedVideos = completedVideos;
+        }
+        dispatch(updateDownloadingProcessModal(update));
+      },
+    );
+
+    // Status callback - handle completion/failure
+    downloadManager.setStatusCallback((videoId, status, localFilePath) => {
+      dispatch(updateVideoStatus({ videoId, status }));
+
+      if (status === 'DOWNLOADED') {
+        dispatch(incrementVideosDownloaded());
+
+        // Check completion after a delay to ensure state updates
+        setTimeout(() => {
+          checkAndHideModalIfComplete();
+        }, 500);
+      } else if (status === 'FAILED') {
+        console.error(`[VideoListNew] Download failed: ${videoId}`);
+
+        // Hide modal
+        dispatch(hideDownloadingProcessModal());
+        dispatch(setDownloadingInModal(false));
+
+        // Show error modal
+        dispatch(
+          showErrorModal({
+            title: 'ডাউনলোড ব্যর্থ',
+            message: 'ডাউনলোড করার সময় সমস্যা হয়েছে।',
+            type: 'download_error',
+            retryAction: () => {
+              setShowBottomWarning(false);
+              setShowLoader(true);
+              setTimeout(() => {
+                dispatch(fetchVideosThunk());
+              }, 500);
+            },
+            canCancel: true,
+          }),
+        );
+      }
+
+      // Update current download
+      if (status === 'DOWNLOADING') {
+        dispatch(setCurrentDownload(videoId));
+      } else if (status === 'DOWNLOADED' || status === 'FAILED') {
+        dispatch(setCurrentDownload(null));
+      }
+    });
+
+    downloadManagerInitialized.current = true;
+  }, [dispatch, checkAndHideModalIfComplete]);
+
+  // ====================
+  // useEffect 9: Modal-based auto-download (1s delay)
+  // ====================
   useEffect(() => {
     const triggerModalDownload = async () => {
       if (
@@ -311,7 +491,7 @@ export default function VideoListNew() {
         autoDownloadEnabled &&
         isOnline &&
         !currentDownload &&
-        !isProcessing &&
+        !isProcessingRef.current &&
         isInitialized &&
         !showLoader
       ) {
@@ -340,148 +520,6 @@ export default function VideoListNew() {
               totalVideos: newVideos.length,
               completedVideos: 0,
             }),
-          );
-
-          const downloadManager = DownloadManager.getInstance();
-
-          // Modal callback - real-time progress updates
-          downloadManager.setModalCallback(
-            (videoName, progress, totalVideos, completedVideos) => {
-              const update = {};
-              if (videoName !== null && videoName !== undefined) {
-                update.currentVideoName = videoName;
-              }
-              if (progress !== null && progress !== undefined) {
-                update.currentVideoProgress = progress;
-              }
-              if (totalVideos !== null && totalVideos !== undefined) {
-                update.totalVideos = totalVideos;
-              }
-              if (completedVideos !== null && completedVideos !== undefined) {
-                update.completedVideos = completedVideos;
-              }
-              dispatch(updateDownloadingProcessModal(update));
-            },
-          );
-
-          // Status callback - handle completion/failure
-          downloadManager.setStatusCallback(
-            (videoId, status, localFilePath) => {
-              dispatch(updateVideoStatus({ videoId, status }));
-
-              if (status === 'DOWNLOADED') {
-                dispatch(incrementVideosDownloaded());
-
-                // Check actual video states after a small delay
-                setTimeout(() => {
-                  const currentState = AppStore.getState();
-                  const { videosWithStatus: updatedVideos } =
-                    currentState.videosStore;
-                  const { downloadingProcessModal } = currentState.modalStore;
-
-                  // Skip if modal is already hidden
-                  if (!downloadingProcessModal.visible) {
-                    console.log(
-                      '[VideoListNew] ⏭️ Modal already hidden, skipping check',
-                    );
-                    return;
-                  }
-
-                  console.log('[VideoListNew] 🔍 CHECKING COMPLETION STATUS');
-                  console.log(
-                    '[VideoListNew] Total videos:',
-                    updatedVideos.length,
-                  );
-
-                  // Count pending videos (NEW, FAILED, or DOWNLOADING)
-                  const pendingVideos = updatedVideos.filter(
-                    v =>
-                      v.status === 'NEW' ||
-                      v.status === 'FAILED' ||
-                      v.status === 'DOWNLOADING',
-                  );
-
-                  // Count completed videos
-                  const completedVideos = updatedVideos.filter(
-                    v => v.status === 'DOWNLOADED',
-                  ).length;
-
-                  console.log('[VideoListNew] ✅ DOWNLOADED:', completedVideos);
-                  console.log(
-                    '[VideoListNew] ⏳ PENDING:',
-                    pendingVideos.length,
-                  );
-                  console.log('[VideoListNew] Pending videos:', pendingVideos);
-
-                  // Update modal with accurate count
-                  dispatch(
-                    updateDownloadingProcessModal({
-                      completedVideos: completedVideos,
-                    }),
-                  );
-
-                  console.log(
-                    `[VideoListNew] 📊 Status - Pending: ${pendingVideos.length}, Completed: ${completedVideos}`,
-                  );
-
-                  // Hide modal if NO pending videos
-                  if (pendingVideos.length === 0 && completedVideos > 0) {
-                    console.log(
-                      '[VideoListNew] ✨ ALL DOWNLOADS COMPLETE! HIDING MODAL...',
-                    );
-
-                    // Hide immediately
-                    console.log(
-                      '[VideoListNew] 🚫 Dispatching hideDownloadingProcessModal...',
-                    );
-                    dispatch(hideDownloadingProcessModal());
-                    dispatch(setDownloadingInModal(false));
-                    dispatch(resetDownloadTracking());
-                  } else {
-                    console.log(
-                      '[VideoListNew] ⚠️ Still have pending videos, NOT hiding modal',
-                    );
-                  }
-                }, 500); // Increased delay to ensure all status updates complete
-              } else if (status === 'FAILED') {
-                console.error(`[VideoListNew] Download failed: ${videoId}`);
-
-                // Hide modal
-                dispatch(hideDownloadingProcessModal());
-                dispatch(setDownloadingInModal(false));
-
-                // Count remaining videos
-                const remainingVideos = videosWithStatus.filter(
-                  v => v.status === 'NEW' || v.status === 'FAILED',
-                );
-                setPendingVideosCount(remainingVideos.length);
-                setShowBottomWarning(remainingVideos.length > 0);
-
-                // Show error modal
-                dispatch(
-                  showErrorModal({
-                    title: 'ডাউনলোড ব্যর্থ',
-                    message: 'ডাউনলোড করার সময় সমস্যা হয়েছে।',
-                    type: 'download_error',
-                    retryAction: () => {
-                      setShowBottomWarning(false);
-                      setShowLoader(true);
-                      setTimeout(() => {
-                        dispatch(fetchVideosThunk());
-                      }, 500);
-                    },
-                    canCancel: true,
-                  }),
-                );
-              }
-
-              // Update current download
-              if (status === 'DOWNLOADING') {
-                dispatch(setCurrentDownload(videoId));
-              } else if (status === 'DOWNLOADED' || status === 'FAILED') {
-                dispatch(setCurrentDownload(null));
-              }
-            },
           );
 
           // Start downloads
@@ -513,17 +551,56 @@ export default function VideoListNew() {
 
     const timeoutId = setTimeout(triggerModalDownload, 1000);
     return () => clearTimeout(timeoutId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     videosWithStatus,
     autoDownloadEnabled,
     isOnline,
+    currentDownload,
     isInitialized,
     showLoader,
     dispatch,
   ]);
 
-  // Pull-to-refresh
+  // ====================
+  // useEffect 10: Show ErrorModal for API errors
+  // ====================
+  useEffect(() => {
+    if (isError && errorMessage) {
+      setShowLoader(false);
+
+      const hasLocalVideos = localVideos && Object.keys(localVideos).length > 0;
+      const offlineVideoCount = hasLocalVideos
+        ? Object.keys(localVideos).length
+        : 0;
+
+      // Set retry callback
+      setErrorModalRetryCallback(() => {
+        dispatch(resetVideosState());
+        lastMergeKeyRef.current = '';
+        lastSyncKeyRef.current = '';
+        setShowLoader(true);
+        setTimeout(() => {
+          dispatch(fetchVideosThunk());
+        }, 100);
+      });
+
+      // Show modal
+      dispatch(
+        showErrorModal({
+          title: 'ত্রুটি',
+          message: errorMessage || 'ভিডিও লোড করতে ব্যর্থ',
+          type: 'api_error',
+          hasOfflineVideos: hasLocalVideos,
+          offlineVideoCount: offlineVideoCount,
+          canCancel: false,
+        }),
+      );
+    }
+  }, [isError, errorMessage, localVideos, dispatch]);
+
+  // ====================
+  // HANDLERS
+  // ====================
   const handleRefresh = useCallback(async () => {
     if (!isOnline) return;
 
@@ -531,8 +608,8 @@ export default function VideoListNew() {
     setShowLoader(true);
 
     try {
-      setLastMergeKey('');
-      setLastSyncKey('');
+      lastMergeKeyRef.current = '';
+      lastSyncKeyRef.current = '';
       dispatch(setSearchQuery(''));
       setShowBottomWarning(false);
       dispatch(resetApiVideosOnly());
@@ -547,7 +624,6 @@ export default function VideoListNew() {
     }
   }, [isOnline, dispatch]);
 
-  // Search
   const handleSearch = useCallback(
     async query => {
       if (!isOnline) return;
@@ -566,7 +642,6 @@ export default function VideoListNew() {
     [dispatch, isOnline],
   );
 
-  // Bottom warning retry
   const handleBottomRetry = useCallback(() => {
     setShowBottomWarning(false);
     setShowLoader(true);
@@ -575,38 +650,9 @@ export default function VideoListNew() {
     }, 500);
   }, [dispatch]);
 
-  // Show ErrorModal for API errors
-  useEffect(() => {
-    if (isError && errorMessage) {
-      // Check if we have local videos directly from storage
-      const hasLocalVideos = localVideos && Object.keys(localVideos).length > 0;
-      const offlineVideoCount = hasLocalVideos
-        ? Object.keys(localVideos).length
-        : 0;
-
-      // Set retry callback only (offline button just hides modal)
-      setErrorModalRetryCallback(() => {
-        dispatch(resetVideosState());
-        setLastMergeKey('');
-        setLastSyncKey('');
-        setTimeout(() => {
-          dispatch(fetchVideosThunk());
-        }, 100);
-      });
-
-      // Show modal - offline button just hides it, videos show underneath
-      dispatch(
-        showErrorModal({
-          title: 'ত্রুটি',
-          message: errorMessage || 'ভিডিও লোড করতে ব্যর্থ',
-          type: 'api_error',
-          hasOfflineVideos: hasLocalVideos,
-          offlineVideoCount: offlineVideoCount,
-          canCancel: false,
-        }),
-      );
-    }
-  }, [isError, errorMessage, localVideos, dispatch]); // Render video list
+  // ====================
+  // RENDER HELPERS
+  // ====================
   const renderVideoList = useCallback(() => {
     return (
       <View style={styles.container}>
@@ -632,12 +678,14 @@ export default function VideoListNew() {
     isSearching,
   ]);
 
+  // ====================
+  // CONDITIONAL RENDERS
+  // ====================
+
   // Offline mode
   if (!isOnline) {
-    if (
-      !isInitialized ||
-      (localVideos && Object.keys(localVideos).length === 0)
-    ) {
+    // Only show loader if not initialized
+    if (!isInitialized) {
       return (
         <View style={styles.container}>
           <CustomLoader visible={true} />
@@ -645,16 +693,30 @@ export default function VideoListNew() {
       );
     }
 
+    // Show downloaded videos (or empty state if none)
     return (
       <View style={styles.container}>
+        <View>
+          <Button
+            title="Refresh"
+            onPress={() => {
+              setIsOnline(!isOnline);
+            }}
+          />
+        </View>
         <OfflineHeader downloadedCount={downloadedCount} />
+        <VideoSearchBar
+          onSearch={handleSearch}
+          isSearching={isSearching}
+          placeholder="Search videos by title (min 3 chars)..."
+        />
         <VideoListRenderer
           videos={downloadedVideos}
           isOnline={isOnline}
           onRefresh={handleRefresh}
           isRefreshing={isRefreshing}
         />
-        <DownloadingProcessModal />
+        <DownloadingProcessModal onPress={() => setIsOnline(!isOnline)} />
       </View>
     );
   }
@@ -668,13 +730,11 @@ export default function VideoListNew() {
     );
   }
 
-  // Error state - Show offline videos if available, otherwise empty view
-  // The ErrorModal will show on top automatically via useEffect
+  // Error state - Show offline videos if available
   if (isError && errorMessage) {
     const hasOfflineVideos = localVideos && Object.keys(localVideos).length > 0;
 
     if (!hasOfflineVideos) {
-      // No offline videos - show empty view (modal shows on top)
       return (
         <View style={styles.container}>
           <CustomLoader visible={false} />
@@ -682,7 +742,6 @@ export default function VideoListNew() {
       );
     }
 
-    // Has offline videos - show them!
     const offlineVideosList = Object.values(localVideos).map(video => ({
       ...video,
       status: 'DOWNLOADED',
@@ -692,6 +751,11 @@ export default function VideoListNew() {
       <>
         <View style={styles.container}>
           <OfflineHeader downloadedCount={offlineVideosList.length} />
+          <VideoSearchBar
+            onSearch={handleSearch}
+            isSearching={isSearching}
+            placeholder="Search videos by title (min 3 chars)..."
+          />
           <VideoListRenderer
             videos={offlineVideosList}
             isOnline={false}
@@ -705,14 +769,24 @@ export default function VideoListNew() {
     );
   }
 
-  // Main render
+  // ====================
+  // MAIN RENDER
+  // ====================
   return (
     <>
       <View style={styles.container}>
+        <View>
+          <Button
+            title="Refresh"
+            onPress={() => {
+              setIsOnline(!isOnline);
+            }}
+          />
+        </View>
         {renderVideoList()}
 
-        {/* DEBUG BUTTON - Remove after fixing */}
-        {__DEV__ && (
+        {/* DEBUG BUTTON */}
+        {/* {__DEV__ && (
           <View
             style={{
               position: 'absolute',
@@ -726,27 +800,13 @@ export default function VideoListNew() {
           >
             <TouchableOpacity
               onPress={() => {
-                const currentState = AppStore.getState();
-                const { videosWithStatus: vids } = currentState.videosStore;
-                const { downloadingProcessModal: modal } =
-                  currentState.modalStore;
-
                 console.log('========== 🔍 DEBUG STATE ==========');
-                console.log('Modal visible:', modal.visible);
-                console.log('Modal state:', modal);
-
-                const pending = vids.filter(
-                  v =>
-                    v.status === 'NEW' ||
-                    v.status === 'FAILED' ||
-                    v.status === 'DOWNLOADING',
-                );
-                const downloaded = vids.filter(v => v.status === 'DOWNLOADED');
-
-                console.log('Total videos:', vids.length);
-                console.log('Pending:', pending.length);
-                console.log('Downloaded:', downloaded.length);
-                console.log('Pending details:', pending);
+                console.log('Modal visible:', downloadingProcessModal?.visible);
+                console.log('Modal state:', downloadingProcessModal);
+                console.log('Total videos:', videosWithStatus.length);
+                console.log('Pending:', pendingVideos.length);
+                console.log('Downloaded:', downloadedVideos.length);
+                console.log('Pending details:', pendingVideos);
                 console.log('====================================');
               }}
             >
@@ -773,21 +833,20 @@ export default function VideoListNew() {
               </Text>
             </TouchableOpacity>
           </View>
-        )}
+        )} */}
       </View>
+
       <CustomLoader visible={showLoader} />
       <DownloadingProcessModal />
       <ErrorModal />
 
       {/* Floating Bottom Warning */}
-      {showBottomWarning && pendingVideosCount > 0 && (
-        <View style={styles.floatingBottomWarning}>
-          <BottomButtonSectionWithText
-            pendingCount={pendingVideosCount}
-            onRetryPress={handleBottomRetry}
-          />
-        </View>
-      )}
+      <View style={styles.floatingBottomWarning}>
+        <BottomButtonSectionWithText
+          pendingCount={pendingVideosCount}
+          onRetryPress={handleBottomRetry}
+        />
+      </View>
     </>
   );
 }
