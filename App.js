@@ -4,6 +4,7 @@ import Toast from 'react-native-toast-message';
 import { Provider } from 'react-redux';
 import AppNavigation from './App/AppNavigation/CustomNavigation';
 
+import { SafeAreaView } from 'react-native-safe-area-context';
 import DownloadInProgressModal from './App/Components/Modal/DownloadInProgressModal';
 import ErrorModal from './App/Components/Modal/ErrorModal';
 import StorageModal from './App/Components/Modal/StorageModal';
@@ -21,15 +22,17 @@ export default function App() {
 
   return (
     <Provider store={AppStore}>
-      <AppNavigation />
+      <SafeAreaView style={{ flex: 1 }}>
+        <AppNavigation />
 
-      {/* Phase 3: Modal Components */}
-      <ErrorModal />
-      <StorageModal />
-      <DownloadInProgressModal />
+        {/* Phase 3: Modal Components */}
+        <ErrorModal />
+        <StorageModal />
+        <DownloadInProgressModal />
 
-      {/* Phase 3: Toast Notifications */}
-      <Toast />
+        {/* Phase 3: Toast Notifications */}
+        <Toast />
+      </SafeAreaView>
     </Provider>
   );
 }
