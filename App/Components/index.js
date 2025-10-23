@@ -10,4 +10,20 @@ import VideoListRenderer from './List/VideoListRenderer';
 import VideoPlayer from './Player/VideoPlayer';
 import VideoSearchBar from './Search/VideoSearchBar';
 
-export { OfflineHeader, VideoListRenderer, VideoPlayer, VideoSearchBar };
+// Phase 1: Modal Download Components
+import BottomButtonSectionWithText from './Button/BottomButtonSectionWithText';
+import CustomLoader from './Loader/CustomLoader';
+import DownloadingProcessModal from './Modal/DownloadingProcessModal';
+import ErrorModal, { setErrorModalRetryCallback } from './Modal/ErrorModal';
+
+export {
+  BottomButtonSectionWithText,
+  CustomLoader,
+  DownloadingProcessModal,
+  ErrorModal,
+  OfflineHeader,
+  VideoListRenderer,
+  VideoPlayer,
+  VideoSearchBar,
+  setErrorModalRetryCallback,
+};

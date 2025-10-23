@@ -243,7 +243,7 @@ export default function CardVideoListItem({ cardItem }) {
   return (
     <View style={styles.itemContainer}>
       {renderMainContent()}
-      {renderDownloadingOverlay()}
+      {/* {renderDownloadingOverlay()} */}
     </View>
   );
 }

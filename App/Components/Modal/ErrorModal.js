@@ -16,6 +16,14 @@ import {
 } from '../../Features/Modal/modalSlice';
 import useAppLanguage from '../../Hooks/useAppLagnuage';
 
+// Global callback storage for retry action only
+let globalRetryCallback = null;
+
+// Export function to set retry callback from outside
+export const setErrorModalRetryCallback = (retryCallback) => {
+  globalRetryCallback = retryCallback;
+};
+
 /**
  * ErrorModal Component
  *
@@ -41,7 +49,8 @@ const ErrorModal = () => {
     title,
     message,
     type,
-    retryAction,
+    hasOfflineVideos,
+    offlineVideoCount,
     canCancel,
   } = errorModal;
 
@@ -75,13 +84,21 @@ const ErrorModal = () => {
     dispatch(hideErrorModal());
 
     // Execute retry action if provided
-    if (retryAction && typeof retryAction === 'function') {
+    if (globalRetryCallback && typeof globalRetryCallback === 'function') {
       try {
-        retryAction();
+        globalRetryCallback();
       } catch (error) {
         console.error('[ErrorModal] Error executing retry action:', error);
       }
     }
+  };
+
+  // Handle offline action (view downloaded videos)
+  const handleOffline = () => {
+    console.log('[ErrorModal] Offline button pressed - Just hiding modal');
+    
+    // Just hide the modal - that's it! Offline videos will show underneath
+    dispatch(hideErrorModal());
   };
 
   // Handle exit app (for critical errors)
@@ -138,6 +155,18 @@ const ErrorModal = () => {
   const renderActionButtons = () => {
     return (
       <View style={styles.buttonContainer}>
+        {/* Offline Videos Button - Show when has downloaded videos */}
+        {hasOfflineVideos && (
+          <TouchableOpacity
+            style={[styles.button, styles.offlineButton]}
+            onPress={handleOffline}
+          >
+            <Text style={styles.offlineButtonText}>
+              ডাউনলোড করা ভিডিও দেখুন ({offlineVideoCount || 0})
+            </Text>
+          </TouchableOpacity>
+        )}
+
         {/* Cancel/Dismiss Button */}
         {canCancel && (
           <TouchableOpacity
@@ -287,18 +316,30 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
     width: '100%',
     gap: 12,
   },
   button: {
     flex: 1,
+    minWidth: '45%',
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 44,
+  },
+  offlineButton: {
+    backgroundColor: '#4CAF50',
+    width: '100%',
+    flex: 'none',
+  },
+  offlineButtonText: {
+    color: ThemeColors.colorWhite,
+    fontSize: 16,
+    fontWeight: '600',
   },
   cancelButton: {
     backgroundColor: ThemeColors.colorGray || '#E0E0E0',

@@ -29,6 +29,7 @@ class DownloadManager {
     this.isProcessing = false; // Flag to prevent multiple simultaneous processing
     this.progressCallback = null; // Callback for progress updates
     this.statusCallback = null; // Callback for status updates
+    this.modalCallback = null; // NEW (Phase 3): Callback for modal updates
     this.downloadJob = null; // Current RNFS download job (for cancellation)
 
     console.log(`${this.logPrefix} Initialized singleton instance`);
@@ -69,6 +70,19 @@ class DownloadManager {
       console.log(`${this.logPrefix} Status callback set`);
     } else {
       console.warn(`${this.logPrefix} Invalid status callback provided`);
+    }
+  }
+
+  /**
+   * NEW (Phase 3): Set modal callback for download progress modal
+   * @param {Function} callback - Function(videoName, progress, totalVideos, completedVideos)
+   */
+  setModalCallback(callback) {
+    if (typeof callback === 'function') {
+      this.modalCallback = callback;
+      console.log(`${this.logPrefix} Modal callback set`);
+    } else {
+      console.warn(`${this.logPrefix} Invalid modal callback provided`);
     }
   }
 
@@ -138,8 +152,11 @@ class DownloadManager {
       }
 
       this.isProcessing = true;
+      const totalVideos = this.downloadQueue.length; // NEW (Phase 3): Track total
+      let completedVideos = 0; // NEW (Phase 3): Track completed
+
       console.log(
-        `${this.logPrefix} Starting queue processing with ${this.downloadQueue.length} videos`,
+        `${this.logPrefix} Starting queue processing with ${totalVideos} videos`,
       );
 
       while (this.downloadQueue.length > 0) {
@@ -161,6 +178,9 @@ class DownloadManager {
         // Update status to DOWNLOADING
         this._updateStatus(video.id, 'DOWNLOADING');
 
+        // NEW (Phase 3): Update modal with current video info (0% progress)
+        this._updateModal(video.name, 0, totalVideos, completedVideos);
+
         // Attempt download
         const success = await this.downloadVideo(video);
 
@@ -169,6 +189,10 @@ class DownloadManager {
             `${this.logPrefix} Successfully downloaded video ${video.id}`,
           );
           this._updateStatus(video.id, 'DOWNLOADED');
+          completedVideos++; // NEW (Phase 3): Increment completed count
+
+          // NEW (Phase 3): Update modal with completed count (100% for this video)
+          this._updateModal(video.name, 100, totalVideos, completedVideos);
         } else {
           console.error(
             `${this.logPrefix} Failed to download video ${video.id}`,
@@ -443,6 +467,21 @@ class DownloadManager {
 
                 // Update progress via callback
                 this._updateProgress(videoId, roundedProgress);
+
+                // NEW (Phase 3): Update modal progress (if currently downloading video)
+                if (
+                  this.currentDownload &&
+                  this.currentDownload.id === videoId
+                ) {
+                  // Note: totalVideos and completedVideos are maintained in processQueue
+                  // We only update the current video progress here
+                  this._updateModal(
+                    this.currentDownload.name,
+                    roundedProgress,
+                    null, // Don't change total
+                    null, // Don't change completed count
+                  );
+                }
               }
             } catch (progressError) {
               console.warn(
@@ -577,6 +616,24 @@ class DownloadManager {
       }
     } catch (error) {
       console.error(`${this.logPrefix} Error in status callback:`, error);
+    }
+  }
+
+  /**
+   * NEW (Phase 3): Update modal with current download info
+   * @private
+   * @param {string} videoName - Name of video being downloaded
+   * @param {number|null} progress - Progress percentage (0-100), null to skip update
+   * @param {number|null} totalVideos - Total videos to download, null to skip update
+   * @param {number|null} completedVideos - Videos completed, null to skip update
+   */
+  _updateModal(videoName, progress, totalVideos, completedVideos) {
+    try {
+      if (this.modalCallback && typeof this.modalCallback === 'function') {
+        this.modalCallback(videoName, progress, totalVideos, completedVideos);
+      }
+    } catch (error) {
+      console.error(`${this.logPrefix} Error in modal callback:`, error);
     }
   }
 

@@ -13,6 +13,10 @@ const initialState = {
   isLoading: false,
   isError: false,
   errorMessage: '',
+  // NEW: Download tracking for modal (Phase 2)
+  totalVideosToDownload: 0, // Total NEW videos to download
+  videosDownloaded: 0, // Videos successfully downloaded in current session
+  isDownloadingInModal: false, // Flag to indicate modal download is active
   // Search functionality
   searchQuery: '', // Current search query
   searchResults: [], // Filtered search results
@@ -23,6 +27,12 @@ export const fetchVideosThunk = createAsyncThunk(
   'Videos/fetchVideos',
   async () => {
     const response = await getVideos();
+
+    // DEBUG: Add 3-4 second delay to see loader
+    console.log('[VideosSlice] 🕐 Adding 3 second delay to see loader...');
+    await new Promise(resolve => setTimeout(resolve, 8000));
+    console.log('[VideosSlice] 🕐 Delay complete, showing videos now');
+
     return response;
   },
 );
@@ -535,6 +545,38 @@ const videoSlice = createSlice({
       );
     },
 
+    // NEW: Download tracking actions (Phase 2)
+    setTotalVideosToDownload: (state, action) => {
+      const total = action.payload;
+      if (typeof total === 'number' && total >= 0) {
+        state.totalVideosToDownload = total;
+        state.videosDownloaded = 0; // Reset counter when setting new total
+        console.log(`[VideosSlice] Total videos to download: ${total}`);
+      }
+    },
+
+    incrementVideosDownloaded: state => {
+      state.videosDownloaded += 1;
+      console.log(
+        `[VideosSlice] Videos downloaded: ${state.videosDownloaded}/${state.totalVideosToDownload}`,
+      );
+    },
+
+    setDownloadingInModal: (state, action) => {
+      const isDownloading = action.payload;
+      if (typeof isDownloading === 'boolean') {
+        state.isDownloadingInModal = isDownloading;
+        console.log(`[VideosSlice] Downloading in modal: ${isDownloading}`);
+      }
+    },
+
+    resetDownloadTracking: state => {
+      state.totalVideosToDownload = 0;
+      state.videosDownloaded = 0;
+      state.isDownloadingInModal = false;
+      console.log('[VideosSlice] Reset download tracking');
+    },
+
     // Search functionality
     setSearchQuery: (state, action) => {
       const query = action.payload || '';
@@ -578,6 +620,10 @@ const videoSlice = createSlice({
       state.isLoading = false;
       state.isError = false;
       state.errorMessage = '';
+      // Reset download tracking
+      state.totalVideosToDownload = 0;
+      state.videosDownloaded = 0;
+      state.isDownloadingInModal = false;
       // Reset search state
       state.searchQuery = '';
       state.searchResults = [];
@@ -762,6 +808,11 @@ export const {
   completeDownload,
   resetVideosState,
   resetApiVideosOnly,
+  // Download tracking actions (Phase 2)
+  setTotalVideosToDownload,
+  incrementVideosDownloaded,
+  setDownloadingInModal,
+  resetDownloadTracking,
   // Search actions
   setSearchQuery,
   setSearching,

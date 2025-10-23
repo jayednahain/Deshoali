@@ -194,94 +194,23 @@ When user refreshes the video list:
 4. Hide loader
 5. Show **DownloadingProcess Modal**
 6. Download **only new videos**
-
-**Example:**
+   **Example:**
 
 - Previously: 7 videos downloaded
 - After refresh: 9 total videos (7 old + 2 new)
 - Download status shows: "7/9"
 - Only downloads the 2 new videos
 
----
+after refresh if user get any error
 
-## Questions & Missing Information
-
-### 1. Download Progress Display
-
-**Question:** How should individual file progress be shown?
-
-- Options: Percentage? Progress bar? File size (downloaded/total)?
-- **Status:**
-  ans : only show Percentage, Progress bar
-
-### 2. Download Strategy
-
-**Question:** Do you download one video at a time or multiple simultaneously?
-
-- **Status:** ⚠️ Needs clarification
-  ans : at a time one vide will be download
-
-### 3. CustomLoader Color
-
-**Question:** ActivityIndicator color is `#00ff00` (green) - is this correct or should it match app theme?
-
-- **Status:** yes this will app primary color i will update it
-
-### 4. Cancel Button Behavior
-
-**Question:** What should happen when user presses cancel on CustomErrorModal?
-
-- Just hide modal and stay on current screen?
-- Stop all downloads?
-- **Status:** ⚠️ Needs clarification
-  ans :
-
-### 7. Opacity Values
-
-**Question:** What specific opacity value for CustomLoader background?
-
-- 0.5? 0.7? Other?
-- **Status:** ⚠️ Needs clarification
-
-### 8. Network Check Frequency
-
-**Question:** Should you check internet connection:
-
-- Before each video download?
-- Only at the start of batch download?
-- **Status:** ⚠️ Needs clarification
-
-### 9. Partial Downloads
-
-**Question:** If a video partially downloads and fails:
-
-- Resume that specific video from where it stopped?
-- Re-download it completely?
-- **Status:** ⚠️ Needs clarification
-
-### 10. Success Feedback
-
-**Question:** After all downloads complete, is there:
-
-- Success message/notification?
-- Or directly show list view?
-- **Status:** ⚠️ Needs clarification
-
----
+- show error modal with
+- try again and cancel button
 
 ## Summary
 
 ### Clear Requirements:
 
 ✅ Three components needed (DownloadingProcess Modal, CustomLoader, CustomErrorModal , BottomButtonSectionWithText)
-✅ Basic flow on app open (memory check → internet check → API call → download)
 ✅ Error handling with retry functionality
 ✅ Refresh functionality with smart download (only new videos)
 ✅ Resume capability after errors
-
-### Needs Clarification:
-
-⚠️ 10 questions listed above require answers before implementation
-⚠️ Specific UI/UX details for progress display
-⚠️ Error handling edge cases
-⚠️ Download strategy and tracking mechanism

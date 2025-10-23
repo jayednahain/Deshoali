@@ -12,7 +12,8 @@ const initialState = {
     title: '',
     message: '',
     type: 'api_error', // 'api_error', 'network_error', 'download_error'
-    retryAction: null, // Function to call on retry
+    hasOfflineVideos: false, // Show offline button if true
+    offlineVideoCount: 0, // Number of offline videos available
     canCancel: true, // Show cancel button
   },
 
@@ -31,6 +32,15 @@ const initialState = {
     progress: 0,
   },
 
+  // NEW: Downloading Process Modal States (Phase 2)
+  downloadingProcessModal: {
+    visible: false,
+    currentVideoName: '',
+    currentVideoProgress: 0, // 0-100%
+    totalVideos: 0, // Total videos to download
+    completedVideos: 0, // Videos already downloaded
+  },
+
   // General Modal States
   isAnyModalVisible: false,
 };
@@ -45,7 +55,8 @@ const modalSlice = createSlice({
         title,
         message,
         type = 'api_error',
-        retryAction = null,
+        hasOfflineVideos = false,
+        offlineVideoCount = 0,
         canCancel = true,
       } = action.payload;
 
@@ -54,12 +65,18 @@ const modalSlice = createSlice({
         title,
         message,
         type,
-        retryAction,
+        hasOfflineVideos,
+        offlineVideoCount,
         canCancel,
       };
       state.isAnyModalVisible = true;
 
-      console.log('[ModalSlice] Showing error modal:', { title, type });
+      console.log('[ModalSlice] Showing error modal:', {
+        title,
+        type,
+        hasOfflineVideos,
+        offlineVideoCount,
+      });
     },
 
     hideErrorModal: state => {
@@ -152,11 +169,90 @@ const modalSlice = createSlice({
       }
     },
 
+    // NEW: Downloading Process Modal Actions (Phase 2)
+    showDownloadingProcessModal: (state, action) => {
+      const {
+        currentVideoName = '',
+        currentVideoProgress = 0,
+        totalVideos = 0,
+        completedVideos = 0,
+      } = action.payload;
+
+      state.downloadingProcessModal = {
+        visible: true,
+        currentVideoName,
+        currentVideoProgress,
+        totalVideos,
+        completedVideos,
+      };
+      state.isAnyModalVisible = true;
+
+      console.log('[ModalSlice] Showing downloading process modal:', {
+        currentVideoName,
+        totalVideos,
+        completedVideos,
+      });
+    },
+
+    hideDownloadingProcessModal: state => {
+      console.log(
+        '[ModalSlice] 🚫 HIDING downloading process modal - BEFORE:',
+        {
+          visible: state.downloadingProcessModal.visible,
+        },
+      );
+
+      state.downloadingProcessModal = {
+        ...initialState.downloadingProcessModal,
+        visible: false,
+      };
+      state.isAnyModalVisible =
+        state.errorModal.visible ||
+        state.storageModal.visible ||
+        state.downloadInProgressModal.visible;
+
+      console.log('[ModalSlice] 🚫 HIDING downloading process modal - AFTER:', {
+        visible: state.downloadingProcessModal.visible,
+        isAnyModalVisible: state.isAnyModalVisible,
+      });
+    },
+
+    updateDownloadingProcessModal: (state, action) => {
+      const {
+        currentVideoName,
+        currentVideoProgress,
+        totalVideos,
+        completedVideos,
+      } = action.payload;
+
+      if (state.downloadingProcessModal.visible) {
+        if (currentVideoName !== undefined) {
+          state.downloadingProcessModal.currentVideoName = currentVideoName;
+        }
+        if (currentVideoProgress !== undefined) {
+          state.downloadingProcessModal.currentVideoProgress =
+            currentVideoProgress;
+        }
+        if (totalVideos !== undefined) {
+          state.downloadingProcessModal.totalVideos = totalVideos;
+        }
+        if (completedVideos !== undefined) {
+          state.downloadingProcessModal.completedVideos = completedVideos;
+        }
+
+        console.log(
+          '[ModalSlice] Updated downloading process modal:',
+          action.payload,
+        );
+      }
+    },
+
     // Hide All Modals
     hideAllModals: state => {
       state.errorModal.visible = false;
       state.storageModal.visible = false;
       state.downloadInProgressModal.visible = false;
+      state.downloadingProcessModal.visible = false;
       state.isAnyModalVisible = false;
 
       console.log('[ModalSlice] Hiding all modals');
@@ -178,6 +274,9 @@ export const {
   showDownloadInProgressModal,
   hideDownloadInProgressModal,
   updateDownloadInProgressModal,
+  showDownloadingProcessModal,
+  hideDownloadingProcessModal,
+  updateDownloadingProcessModal,
   hideAllModals,
   resetModalState,
 } = modalSlice.actions;
@@ -190,6 +289,9 @@ export const selectStorageModal = state =>
 export const selectDownloadInProgressModal = state =>
   state.modalStore?.downloadInProgressModal ||
   initialState.downloadInProgressModal;
+export const selectDownloadingProcessModal = state =>
+  state.modalStore?.downloadingProcessModal ||
+  initialState.downloadingProcessModal;
 export const selectIsAnyModalVisible = state =>
   state.modalStore?.isAnyModalVisible || false;
 

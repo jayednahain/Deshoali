@@ -1,7 +1,8 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import VideoDetails from '../UiViews/VideoDetails';
-import VideoList from '../UiViews/VideoList';
+// import VideoList from '../UiViews/VideoList'; // Old implementation
+import VideoListNew from '../UiViews/VideoListNew'; // NEW: Modal-centric implementation
 import { useAppLanguage } from './../Hooks/useAppLagnuage';
 
 const Stack = createStackNavigator();
@@ -31,7 +32,7 @@ const AppNavigation = () => {
       <Stack.Navigator initialRouteName="AudioListView">
         <Stack.Screen
           name="AudioListView"
-          component={VideoList}
+          component={VideoListNew}
           options={({ navigation }) =>
             navigationOption(navigation, 'Video List')
           }
