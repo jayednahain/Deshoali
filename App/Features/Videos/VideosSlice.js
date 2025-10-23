@@ -30,7 +30,7 @@ export const fetchVideosThunk = createAsyncThunk(
 
     // DEBUG: Add 3-4 second delay to see loader
     console.log('[VideosSlice] 🕐 Adding 3 second delay to see loader...');
-    await new Promise(resolve => setTimeout(resolve, 8000));
+    await new Promise(resolve => setTimeout(resolve, 2000));
     console.log('[VideosSlice] 🕐 Delay complete, showing videos now');
 
     return response;
