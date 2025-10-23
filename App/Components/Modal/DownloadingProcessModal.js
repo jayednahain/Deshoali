@@ -1,21 +1,13 @@
 import React, { useEffect } from 'react';
 import { Modal, StyleSheet, Text, View } from 'react-native';
 import { useSelector } from 'react-redux';
-import { ThemeColors } from '../../AppTheme';
+import { H5, H6, ThemeColors } from '../../AppTheme';
 import { selectDownloadingProcessModal } from '../../Features/Modal/modalSlice';
+import useAppLanguage from '../../Hooks/useAppLagnuage';
 
-/**
- * DownloadingProcessModal - Shows download progress
- * Cannot be closed by user during downloads
- *
- * Displays:
- * - Current video name
- * - Single file progress (0-100%)
- * - Total progress (X/Y videos)
- * - Warning messages
- */
-const DownloadingProcessModal = () => {
+const DownloadingProcessModal = ({ onPress }) => {
   const modalState = useSelector(selectDownloadingProcessModal);
+  const { i18n } = useAppLanguage();
 
   const {
     visible,
@@ -36,9 +28,6 @@ const DownloadingProcessModal = () => {
   }, [visible, completedVideos, totalVideos, currentVideoName]);
 
   if (!visible) {
-    console.log(
-      '[DownloadingProcessModal] ❌ Modal is HIDDEN - returning null',
-    );
     return null;
   }
 
@@ -64,18 +53,18 @@ const DownloadingProcessModal = () => {
 
           {/* Warning Message */}
           <View style={styles.warningContainer}>
-            <Text style={styles.warningText}>ইন্টারনেট সংযোগ চালু রাখুন !</Text>
-            <Text style={styles.warningText}>
-              অনুগ্রহ পূর্বক মোবাইল এপ কার্যক্রম চালু রাখুন !
-            </Text>
+            <H6 textStyle={styles.warningText}>{i18n('keep_connection')}</H6>
+            <H6 textStyle={styles.warningText}>{i18n('keep_app_active')}</H6>
           </View>
 
-          {/* Total Progress: X/Y */}
           <View style={styles.totalProgressContainer}>
             <Text style={styles.totalProgressText}>
               {completedVideos}/{totalVideos}
             </Text>
-            <Text style={styles.totalProgressLabel}>ভিডিও ডাউনলোড সম্পন্ন</Text>
+
+            <H5 textStyle={styles.totalProgressLabel}>
+              {i18n('download_complete')}
+            </H5>
           </View>
 
           {/* Current Video Info */}
@@ -83,8 +72,11 @@ const DownloadingProcessModal = () => {
             <Text style={styles.currentVideoLabel}>
               বর্তমান ভিডিও ({nextVideoNumber}/{totalVideos}):
             </Text>
+
             <Text style={styles.currentVideoName} numberOfLines={2}>
               {currentVideoName || 'Loading...'}
+
+              {/* //loading */}
             </Text>
           </View>
 
@@ -130,17 +122,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   warningContainer: {
-    backgroundColor: '#FFF3CD',
+    backgroundColor: ThemeColors.colorWarning,
     borderRadius: 8,
     padding: 12,
     marginBottom: 20,
     width: '100%',
   },
   warningText: {
-    fontSize: 14,
-    color: '#856404',
     textAlign: 'center',
-    marginVertical: 2,
+    color: ThemeColors.colorWhite,
+    fontWeight: '800',
   },
   totalProgressContainer: {
     alignItems: 'center',
@@ -152,7 +143,6 @@ const styles = StyleSheet.create({
     color: ThemeColors.colorPrimary || '#007AFF',
   },
   totalProgressLabel: {
-    fontSize: 14,
     color: ThemeColors.colorGray,
     marginTop: 4,
   },
