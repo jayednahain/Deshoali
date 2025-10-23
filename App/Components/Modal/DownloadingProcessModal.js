@@ -30,9 +30,6 @@ const DownloadingProcessModal = ({ onPress }) => {
   if (!visible) {
     return null;
   }
-
-  console.log('[DownloadingProcessModal] ✅ Modal is VISIBLE - rendering');
-
   const nextVideoNumber = completedVideos + 1; // Currently downloading video number
   const progressPercentage = Math.round(currentVideoProgress || 0);
 
@@ -41,10 +38,7 @@ const DownloadingProcessModal = ({ onPress }) => {
       visible={visible}
       transparent={true}
       animationType="fade"
-      onRequestClose={() => {
-        // Prevent closing - user cannot dismiss during downloads
-        console.log('[DownloadingProcessModal] Cannot close during download');
-      }}
+      onRequestClose={() => {}}
     >
       <View style={styles.overlay}>
         <View style={styles.modalContainer}>
@@ -75,8 +69,6 @@ const DownloadingProcessModal = ({ onPress }) => {
 
             <Text style={styles.currentVideoName} numberOfLines={2}>
               {currentVideoName || 'Loading...'}
-
-              {/* //loading */}
             </Text>
           </View>
 
