@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Orientation from 'react-native-orientation-locker';
 import { ThemeColors } from '../AppTheme';
 import VideoPlayer from '../Components/Player/VideoPlayer';
 import { useAppLanguage } from '../Hooks/useAppLagnuage';
@@ -18,12 +19,10 @@ export default function VideoDetails() {
   const route = useRoute();
   const { i18n } = useAppLanguage();
 
-  // Get video data from navigation params
   const { videoData } = route.params || {};
-
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Enhanced video data validation with better error handling
+  // Enhanced video data validation
   useEffect(() => {
     if (!videoData) {
       console.warn('[VideoDetails] No video data provided');
@@ -41,15 +40,13 @@ export default function VideoDetails() {
       return;
     }
 
-    // Enhanced validation for video readiness
-    console.log('[VideoDetails] Video data validation:', {
+    console.log('[VideoDetails] Video data:', {
       id: videoData.id,
       name: videoData.name,
       status: videoData.status,
       localFilePath: videoData.localFilePath,
     });
 
-    // Check if video is downloaded and has valid file path
     if (videoData.status !== 'DOWNLOADED') {
       let errorMessage =
         'This video is not downloaded yet. Please download it first to play.';
@@ -77,7 +74,6 @@ export default function VideoDetails() {
       return;
     }
 
-    // Additional check for local file path
     if (!videoData.localFilePath) {
       console.warn(
         '[VideoDetails] Video marked as DOWNLOADED but no localFilePath',
@@ -97,11 +93,23 @@ export default function VideoDetails() {
     }
   }, [videoData, navigation, i18n]);
 
-  // Handle back button
+  // Initialize orientation to portrait on mount
+  useEffect(() => {
+    Orientation.lockToPortrait();
+
+    return () => {
+      // Ensure portrait mode when leaving screen
+      Orientation.lockToPortrait();
+    };
+  }, []);
+
+  // Handle back button with fullscreen support
   useEffect(() => {
     const backAction = () => {
       if (isFullscreen) {
+        // Exit fullscreen and return to portrait
         setIsFullscreen(false);
+        Orientation.lockToPortrait();
         return true; // Prevent default back action
       }
       return false; // Allow default back action
@@ -114,23 +122,24 @@ export default function VideoDetails() {
     return () => backHandler.remove();
   }, [isFullscreen]);
 
-  // Enhanced fullscreen toggle with logging
+  // Handle fullscreen toggle
   const handleFullscreenToggle = useCallback(fullscreen => {
     console.log('[VideoDetails] Fullscreen toggle:', fullscreen);
     setIsFullscreen(fullscreen);
   }, []);
 
-  // Enhanced navigation back with better fullscreen handling
+  // Handle navigation back
   const handleGoBack = useCallback(() => {
     console.log('[VideoDetails] Back pressed, fullscreen:', isFullscreen);
     if (isFullscreen) {
       setIsFullscreen(false);
+      Orientation.lockToPortrait();
     } else {
       navigation.goBack();
     }
   }, [isFullscreen, navigation]);
 
-  // Enhanced validation with fallback UI
+  // Validation fallback UI
   if (
     !videoData ||
     videoData.status !== 'DOWNLOADED' ||
@@ -191,7 +200,7 @@ export default function VideoDetails() {
         </View>
       )}
 
-      {/* Enhanced Video Player Container */}
+      {/* Video Player Container */}
       <View
         style={[
           styles.playerContainer,
@@ -203,16 +212,6 @@ export default function VideoDetails() {
           onFullscreenToggle={handleFullscreenToggle}
           isFullscreen={isFullscreen}
         />
-
-        {/* Debug overlay for development */}
-        {__DEV__ && (
-          <View style={styles.debugOverlay}>
-            <Text style={styles.debugText}>
-              Status: {videoData.status} | File:{' '}
-              {videoData.localFilePath ? 'OK' : 'Missing'}
-            </Text>
-          </View>
-        )}
       </View>
 
       {/* Video Information - Hide in fullscreen */}
@@ -322,7 +321,6 @@ const styles = StyleSheet.create({
     color: ThemeColors.colorGray,
     marginBottom: 8,
   },
-  // Enhanced error handling styles
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -345,20 +343,5 @@ const styles = StyleSheet.create({
     color: ThemeColors.colorWhite,
     fontSize: 16,
     fontWeight: 'bold',
-  },
-  // Debug overlay for development
-  debugOverlay: {
-    position: 'absolute',
-    top: 10,
-    left: 10,
-    right: 10,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    padding: 8,
-    borderRadius: 4,
-  },
-  debugText: {
-    color: ThemeColors.colorWhite,
-    fontSize: 12,
-    fontFamily: 'monospace',
   },
 });

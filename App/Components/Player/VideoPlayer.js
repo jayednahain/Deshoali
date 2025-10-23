@@ -16,6 +16,7 @@ import {
   View,
 } from 'react-native';
 import RNFS from 'react-native-fs';
+import Orientation from 'react-native-orientation-locker';
 import Video from 'react-native-video';
 import { ThemeColors } from '../../AppTheme';
 import { useAppLanguage } from '../../Hooks/useAppLagnuage';
@@ -36,26 +37,38 @@ export default function VideoPlayer({
   const [duration, setDuration] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [showControls, setShowControls] = useState(true);
-  const [volume] = useState(1.0);
   const [isMuted, setIsMuted] = useState(false);
+  const [isSeeking, setIsSeeking] = useState(false);
+  const [videoKey, setVideoKey] = useState(0);
+
+  // Debug state changes
+  useEffect(() => {
+    console.log('[VideoPlayer] State:', {
+      isPlaying,
+      currentTime: currentTime.toFixed(2),
+      duration: duration.toFixed(2),
+      isSeeking,
+      isLoading,
+    });
+  }, [isPlaying, currentTime, duration, isSeeking, isLoading]);
 
   // Extract video data
   const { name = '', localFilePath = '' } = videoData || {};
 
-  // Debug logging
-  console.log('[VideoPlayer] Video data:', JSON.stringify(videoData, null, 2));
-  console.log('[VideoPlayer] Local file path:', localFilePath);
-
-  // Video source validation
+  // Video source validation with proper file:// handling
   const videoSource = useMemo(() => {
     if (!localFilePath) {
       console.warn('[VideoPlayer] No local file path provided');
       return null;
     }
 
-    const source = { uri: `file://${localFilePath}` };
-    console.log('[VideoPlayer] Video source:', source);
-    return source;
+    // Handle file:// prefix properly
+    const uri = localFilePath.startsWith('file://')
+      ? localFilePath
+      : `file://${localFilePath}`;
+
+    console.log('[VideoPlayer] Video source URI:', uri);
+    return { uri };
   }, [localFilePath]);
 
   // Check file existence
@@ -63,13 +76,16 @@ export default function VideoPlayer({
     const checkFile = async () => {
       if (localFilePath) {
         try {
-          const exists = await RNFS.exists(localFilePath);
-          console.log('[VideoPlayer] File exists:', exists);
-          console.log('[VideoPlayer] Checking path:', localFilePath);
+          // Remove file:// prefix if present for RNFS
+          const cleanPath = localFilePath.replace('file://', '');
+          const exists = await RNFS.exists(cleanPath);
+          console.log('[VideoPlayer] File exists:', exists, 'at:', cleanPath);
 
           if (exists) {
-            const stat = await RNFS.stat(localFilePath);
-            console.log('[VideoPlayer] File stat:', stat);
+            const stat = await RNFS.stat(cleanPath);
+            console.log('[VideoPlayer] File size:', stat.size, 'bytes');
+          } else {
+            console.error('[VideoPlayer] File does not exist at path');
           }
         } catch (error) {
           console.error('[VideoPlayer] Error checking file:', error);
@@ -79,23 +95,21 @@ export default function VideoPlayer({
     checkFile();
   }, [localFilePath]);
 
-  // Auto-hide controls
+  // Auto-hide controls with proper cleanup
   const startHideControlsTimer = useCallback(() => {
     if (hideControlsTimeout.current) {
       clearTimeout(hideControlsTimeout.current);
     }
 
     hideControlsTimeout.current = setTimeout(() => {
-      if (isPlaying) {
-        setShowControls(false);
-        Animated.timing(controlsOpacity, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }).start();
-      }
+      setShowControls(false);
+      Animated.timing(controlsOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
     }, 3000);
-  }, [isPlaying, controlsOpacity]);
+  }, [controlsOpacity]);
 
   // Show controls
   const showControlsTemp = useCallback(() => {
@@ -105,68 +119,109 @@ export default function VideoPlayer({
       duration: 300,
       useNativeDriver: true,
     }).start();
-    startHideControlsTimer();
-  }, [controlsOpacity, startHideControlsTimer]);
+  }, [controlsOpacity]);
 
-  // Handle video tap
+  // Handle video tap - FIXED
   const handleVideoTap = useCallback(() => {
-    if (showControls) {
-      setShowControls(false);
-      Animated.timing(controlsOpacity, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
-    } else {
-      showControlsTemp();
-    }
-  }, [showControls, controlsOpacity, showControlsTemp]);
+    setShowControls(prev => {
+      if (!prev) {
+        // Currently hidden, show them
+        Animated.timing(controlsOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }).start();
+        return true;
+      } else {
+        // Currently visible, hide them
+        Animated.timing(controlsOpacity, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }).start();
+        return false;
+      }
+    });
+  }, [controlsOpacity]);
 
   // Handle play/pause
   const handlePlayPause = useCallback(() => {
-    setIsPlaying(!isPlaying);
+    setIsPlaying(prev => !prev);
     showControlsTemp();
-  }, [isPlaying, showControlsTemp]);
+  }, [showControlsTemp]);
 
-  // Handle seek
-  const handleSeek = useCallback(
+  // Handle seek - FIXED with proper slider handling
+  const handleSlidingStart = useCallback(() => {
+    console.log('[VideoPlayer] Slider started');
+    setIsSeeking(true);
+    if (hideControlsTimeout.current) {
+      clearTimeout(hideControlsTimeout.current);
+    }
+  }, []);
+
+  const handleSeekChange = useCallback(value => {
+    console.log('[VideoPlayer] Slider value changing:', value);
+    setCurrentTime(value);
+  }, []);
+
+  const handleSlidingComplete = useCallback(
     value => {
-      if (videoRef.current) {
+      console.log('[VideoPlayer] Slider complete, seeking to:', value);
+      if (videoRef.current && value >= 0 && value <= duration) {
         videoRef.current.seek(value);
         setCurrentTime(value);
       }
+      setIsSeeking(false);
       showControlsTemp();
     },
-    [showControlsTemp],
+    [duration, showControlsTemp],
   );
 
-  // Handle fullscreen toggle
+  // Handle fullscreen toggle with ROTATION
   const handleFullscreenToggle = useCallback(() => {
-    onFullscreenToggle(!isFullscreen);
+    const newFullscreenState = !isFullscreen;
+
+    if (newFullscreenState) {
+      // Entering fullscreen - lock to landscape
+      Orientation.lockToLandscape();
+    } else {
+      // Exiting fullscreen - lock to portrait
+      Orientation.lockToPortrait();
+    }
+
+    onFullscreenToggle(newFullscreenState);
     showControlsTemp();
   }, [isFullscreen, onFullscreenToggle, showControlsTemp]);
 
   // Handle mute toggle
   const handleMuteToggle = useCallback(() => {
-    setIsMuted(!isMuted);
+    setIsMuted(prev => !prev);
     showControlsTemp();
-  }, [isMuted, showControlsTemp]);
+  }, [showControlsTemp]);
 
   // Video event handlers
   const onLoad = useCallback(data => {
-    setDuration(data.duration);
+    console.log('[VideoPlayer] Video loaded successfully:', data);
+    const videoDuration = data.duration || 0;
+    setDuration(videoDuration);
+    setCurrentTime(0); // Reset to start
     setIsLoading(false);
-    console.log('[VideoPlayer] Video loaded:', data);
   }, []);
 
-  const onProgress = useCallback(data => {
-    setCurrentTime(data.currentTime);
-  }, []);
+  const onProgress = useCallback(
+    data => {
+      // Only update if not seeking to prevent slider jumping
+      if (!isSeeking && data && data.currentTime >= 0) {
+        console.log('[VideoPlayer] Progress update:', data.currentTime);
+        setCurrentTime(data.currentTime);
+      }
+    },
+    [isSeeking],
+  );
 
   const onEnd = useCallback(() => {
     setIsPlaying(false);
     setCurrentTime(0);
-    // Reset video to beginning
     if (videoRef.current) {
       videoRef.current.seek(0);
     }
@@ -176,10 +231,12 @@ export default function VideoPlayer({
 
   const onError = useCallback(
     error => {
-      console.error('[VideoPlayer] Video error:', error);
+      console.error(
+        '[VideoPlayer] Video error:',
+        JSON.stringify(error, null, 2),
+      );
       setIsLoading(false);
 
-      // Determine error type for better user message
       let errorMessage = 'Failed to load video. Please try again.';
       let errorTitle = 'Playback Error';
 
@@ -189,8 +246,7 @@ export default function VideoPlayer({
 
         console.log('[VideoPlayer] Error details:', {
           errorString: error.error.errorString,
-          errorCode: error.error.errorCode,
-          cause: error.error.cause,
+          errorCode: errorCode,
         });
 
         if (
@@ -201,11 +257,11 @@ export default function VideoPlayer({
         ) {
           errorTitle = 'Video Format Error';
           errorMessage =
-            'This video format is not supported on your device. The video may be corrupted or encoded in an unsupported format (H.265/HEVC). Please try another video or contact support.';
+            'This video format is not supported on your device. The video may need to be re-encoded to H.264 format.';
         } else if (errorStr.includes('network') || errorStr.includes('io')) {
-          errorTitle = 'Connection Error';
+          errorTitle = 'File Error';
           errorMessage =
-            'Failed to load video file. Check your connection and try again.';
+            'Failed to load video file. The file may be corrupted.';
         }
       }
 
@@ -217,11 +273,10 @@ export default function VideoPlayer({
             text: i18n('retry') || 'Retry',
             onPress: () => {
               console.log('[VideoPlayer] Retrying video playback');
+              setVideoKey(prev => prev + 1); // Force remount
               setIsLoading(true);
-              // Force reload by resetting video component
-              if (videoRef.current) {
-                videoRef.current.seek(0);
-              }
+              setCurrentTime(0);
+              setIsPlaying(false);
             },
           },
           { text: i18n('ok') || 'OK' },
@@ -231,19 +286,22 @@ export default function VideoPlayer({
     [i18n],
   );
 
-  // Format time
   const formatTime = useCallback(seconds => {
+    if (!seconds || seconds < 0 || !isFinite(seconds)) {
+      return '0:00';
+    }
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   }, []);
 
-  // Cleanup timers
   useEffect(() => {
     return () => {
       if (hideControlsTimeout.current) {
         clearTimeout(hideControlsTimeout.current);
       }
+      // Reset orientation when component unmounts
+      Orientation.lockToPortrait();
     };
   }, []);
 
@@ -251,9 +309,12 @@ export default function VideoPlayer({
   useEffect(() => {
     if (isPlaying && showControls) {
       startHideControlsTimer();
-    } else if (hideControlsTimeout.current) {
-      clearTimeout(hideControlsTimeout.current);
     }
+    return () => {
+      if (hideControlsTimeout.current) {
+        clearTimeout(hideControlsTimeout.current);
+      }
+    };
   }, [isPlaying, showControls, startHideControlsTimer]);
 
   if (!videoSource) {
@@ -275,36 +336,42 @@ export default function VideoPlayer({
       <TouchableWithoutFeedback onPress={handleVideoTap}>
         <View style={styles.videoContainer}>
           <Video
+            key={videoKey}
             ref={videoRef}
             source={videoSource}
             style={styles.video}
             resizeMode="contain"
             paused={!isPlaying}
-            volume={isMuted ? 0 : volume}
+            volume={isMuted ? 0 : 1.0}
             onLoad={onLoad}
             onProgress={onProgress}
             onEnd={onEnd}
             onError={onError}
-            progressUpdateInterval={1000}
-            // Performance optimizations
+            progressUpdateInterval={250}
+            onLoadStart={() => {
+              console.log('[VideoPlayer] Video load started');
+              setIsLoading(true);
+            }}
+            onReadyForDisplay={() => {
+              console.log('[VideoPlayer] Video ready for display');
+            }}
+            onPlaybackStateChanged={state => {
+              console.log('[VideoPlayer] Playback state changed:', state);
+            }}
             playWhenInactive={false}
             playInBackground={false}
             allowsExternalPlayback={false}
-            // Android specific optimizations
             hideShutterView={true}
             disableFocus={true}
-            // Audio handling
             ignoreSilentSwitch="ignore"
             mixWithOthers="mix"
-            // Codec compatibility settings for MediaCodecVideoRenderer errors
-            useTextureView={false}
+            useTextureView={true}
             bufferConfig={{
-              minBufferMs: 15000,
-              maxBufferMs: 50000,
-              bufferForPlaybackMs: 2500,
-              bufferForPlaybackAfterRebufferMs: 5000,
+              minBufferMs: 2000,
+              maxBufferMs: 5000,
+              bufferForPlaybackMs: 1000,
+              bufferForPlaybackAfterRebufferMs: 1500,
             }}
-            // Additional codec settings
             controls={false}
             reportBandwidth={true}
             selectedVideoTrack={{
@@ -321,10 +388,25 @@ export default function VideoPlayer({
             </View>
           )}
 
-          {/* Controls overlay */}
+          {/* Debug info in development */}
+          {__DEV__ && (
+            <View style={styles.debugInfo}>
+              <Text style={styles.debugText}>
+                Time: {formatTime(currentTime)} / {formatTime(duration)}
+              </Text>
+              <Text style={styles.debugText}>
+                Raw: {currentTime.toFixed(1)}s / {duration.toFixed(1)}s
+              </Text>
+              <Text style={styles.debugText}>
+                Seeking: {isSeeking ? 'YES' : 'NO'} | Playing:{' '}
+                {isPlaying ? 'YES' : 'NO'}
+              </Text>
+            </View>
+          )}
+
+          {/* Controls overlay - ALWAYS can receive touches */}
           <Animated.View
             style={[styles.controlsOverlay, { opacity: controlsOpacity }]}
-            pointerEvents={showControls ? 'auto' : 'none'}
           >
             {/* Top controls */}
             <View style={styles.topControls}>
@@ -360,12 +442,15 @@ export default function VideoPlayer({
               <Slider
                 style={styles.progressSlider}
                 minimumValue={0}
-                maximumValue={duration}
-                value={currentTime}
-                onValueChange={handleSeek}
+                maximumValue={duration > 0 ? duration : 1}
+                value={currentTime >= 0 ? currentTime : 0}
+                onSlidingStart={handleSlidingStart}
+                onValueChange={handleSeekChange}
+                onSlidingComplete={handleSlidingComplete}
                 minimumTrackTintColor={ThemeColors.colorPrimary || '#007AFF'}
                 maximumTrackTintColor="rgba(255,255,255,0.3)"
-                thumbStyle={styles.sliderThumb}
+                thumbTintColor={ThemeColors.colorWhite}
+                disabled={duration <= 0 || isLoading}
               />
 
               <Text style={styles.timeText}>{formatTime(duration)}</Text>
@@ -466,11 +551,6 @@ const styles = StyleSheet.create({
     height: 40,
     marginHorizontal: 8,
   },
-  sliderThumb: {
-    backgroundColor: ThemeColors.colorWhite,
-    width: 16,
-    height: 16,
-  },
   muteButton: {
     padding: 8,
     marginLeft: 8,
@@ -484,5 +564,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     margin: 20,
+  },
+  debugInfo: {
+    position: 'absolute',
+    top: 60,
+    left: 10,
+    right: 10,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    padding: 8,
+    borderRadius: 4,
+  },
+  debugText: {
+    color: '#00ff00',
+    fontSize: 11,
+    fontFamily: 'monospace',
   },
 });
