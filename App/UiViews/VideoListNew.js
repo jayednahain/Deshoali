@@ -114,13 +114,17 @@ export default function VideoListNew() {
     return searchQuery.trim() ? searchResults : videosWithStatus;
   }, [searchQuery, searchResults, videosWithStatus]);
 
-  const pendingVideos = useMemo(() => {
+  // Memoized: Videos still being processed (NEW or DOWNLOADING)
+  // FAILED videos are NOT pending - they need manual retry
+  const processingVideos = useMemo(() => {
     return videosWithStatus.filter(
-      v =>
-        v.status === 'NEW' ||
-        v.status === 'FAILED' ||
-        v.status === 'DOWNLOADING',
+      v => v.status === 'NEW' || v.status === 'DOWNLOADING',
     );
+  }, [videosWithStatus]);
+
+  // Memoized: Failed videos (for retry button)
+  const failedVideos = useMemo(() => {
+    return videosWithStatus.filter(v => v.status === 'FAILED');
   }, [videosWithStatus]);
 
   // ====================
@@ -135,26 +139,40 @@ export default function VideoListNew() {
       return;
     }
 
-    const pending = videosWithStatus.filter(
-      v =>
-        v.status === 'NEW' ||
-        v.status === 'FAILED' ||
-        v.status === 'DOWNLOADING',
+    // Only check NEW and DOWNLOADING (actively being processed)
+    // FAILED videos should NOT prevent modal from hiding
+    const stillProcessing = videosWithStatus.filter(
+      v => v.status === 'NEW' || v.status === 'DOWNLOADING',
     );
 
     const completed = videosWithStatus.filter(v => v.status === 'DOWNLOADED');
 
+    const failed = videosWithStatus.filter(v => v.status === 'FAILED');
+
     console.log(
-      `[VideoListNew] 🔍 COMPLETION CHECK - Pending: ${pending.length}, Downloaded: ${completed.length}`,
+      `[VideoListNew] 🔍 COMPLETION CHECK - Processing: ${stillProcessing.length}, Downloaded: ${completed.length}, Failed: ${failed.length}`,
     );
 
-    // If no pending videos and we have completed videos, hide modal
-    if (pending.length === 0 && completed.length > 0) {
+    // Hide modal when all NEW videos are either DOWNLOADED or FAILED
+    // (No more NEW or DOWNLOADING status)
+    if (
+      stillProcessing.length === 0 &&
+      (completed.length > 0 || failed.length > 0)
+    ) {
       console.log('[VideoListNew] ✨ ALL DOWNLOADS COMPLETE! HIDING MODAL...');
 
       dispatch(hideDownloadingProcessModal());
       dispatch(setDownloadingInModal(false));
       dispatch(resetDownloadTracking());
+
+      // Show bottom warning if there are failed videos
+      if (failed.length > 0) {
+        console.log(
+          `[VideoListNew] ⚠️ ${failed.length} FAILED videos - showing retry button`,
+        );
+        setPendingVideosCount(failed.length);
+        setShowBottomWarning(true);
+      }
     }
   }, [videosWithStatus, downloadingProcessModal, dispatch]);
 
@@ -373,15 +391,20 @@ export default function VideoListNew() {
       return;
     }
 
-    const pending = pendingVideos.length;
-    const completed = downloadedVideos.length;
-
-    console.log(
-      `[VideoListNew] 🔄 BACKUP CHECK - Pending: ${pending}, Downloaded: ${completed}`,
+    // Only check NEW and DOWNLOADING (actively being processed)
+    const stillProcessing = videosWithStatus.filter(
+      v => v.status === 'NEW' || v.status === 'DOWNLOADING',
     );
 
-    // If no pending videos and modal is still visible, hide it
-    if (pending === 0 && completed > 0) {
+    const completed = downloadedVideos.length;
+    const failed = videosWithStatus.filter(v => v.status === 'FAILED').length;
+
+    console.log(
+      `[VideoListNew] 🔄 BACKUP CHECK - Processing: ${stillProcessing.length}, Downloaded: ${completed}, Failed: ${failed}`,
+    );
+
+    // If no videos still processing and modal is still visible, hide it
+    if (stillProcessing.length === 0 && (completed > 0 || failed > 0)) {
       console.log(
         '[VideoListNew] 🚨 BACKUP CHECK TRIGGERED - Hiding modal now!',
       );
@@ -390,12 +413,20 @@ export default function VideoListNew() {
         dispatch(hideDownloadingProcessModal());
         dispatch(setDownloadingInModal(false));
         dispatch(resetDownloadTracking());
+
+        // Show bottom warning if there are failed videos
+        if (failed > 0) {
+          console.log(
+            `[VideoListNew] ⚠️ ${failed} FAILED videos - showing retry button`,
+          );
+          setPendingVideosCount(failed);
+          setShowBottomWarning(true);
+        }
       }, 500);
     }
   }, [
     videosWithStatus,
     downloadingProcessModal,
-    pendingVideos.length,
     downloadedVideos.length,
     dispatch,
   ]);
@@ -639,13 +670,39 @@ export default function VideoListNew() {
     [dispatch, isOnline],
   );
 
+  // Bottom warning retry - Retry FAILED videos
   const handleBottomRetry = useCallback(() => {
+    console.log('[VideoListNew] Retrying FAILED videos...');
+
     setShowBottomWarning(false);
-    setShowLoader(true);
-    setTimeout(() => {
-      dispatch(fetchVideosThunk());
-    }, 500);
-  }, [dispatch]);
+
+    // Reset FAILED videos to NEW status
+    const failedVids = videosWithStatus.filter(v => v.status === 'FAILED');
+
+    if (failedVids.length > 0) {
+      console.log(
+        `[VideoListNew] Resetting ${failedVids.length} FAILED videos to NEW`,
+      );
+
+      // Reset each failed video to NEW
+      failedVids.forEach(video => {
+        dispatch(updateVideoStatus({ videoId: video.id, status: 'NEW' }));
+      });
+
+      // Show modal
+      dispatch(
+        showDownloadingProcessModal({
+          currentVideoName: failedVids[0].name,
+          currentVideoProgress: 0,
+          totalVideos: failedVids.length,
+          completedVideos: 0,
+        }),
+      );
+
+      // Start auto-download will pick them up automatically
+      // (useEffect 9 will trigger when status changes to NEW)
+    }
+  }, [videosWithStatus, dispatch]);
 
   // ====================
   // RENDER HELPERS
@@ -749,7 +806,6 @@ export default function VideoListNew() {
     return (
       <>
         <View style={styles.container}>
-          <OfflineHeader downloadedCount={offlineVideosList.length} />
           <VideoSearchBar
             onSearch={handleSearch}
             isSearching={isSearching}
@@ -799,13 +855,20 @@ export default function VideoListNew() {
           >
             <TouchableOpacity
               onPress={() => {
+                const processing = videosWithStatus.filter(
+                  v => v.status === 'NEW' || v.status === 'DOWNLOADING',
+                );
+                const failed = videosWithStatus.filter(v => v.status === 'FAILED');
+
                 console.log('========== 🔍 DEBUG STATE ==========');
                 console.log('Modal visible:', downloadingProcessModal?.visible);
                 console.log('Modal state:', downloadingProcessModal);
                 console.log('Total videos:', videosWithStatus.length);
-                console.log('Pending:', pendingVideos.length);
+                console.log('Processing (NEW/DOWNLOADING):', processing.length);
                 console.log('Downloaded:', downloadedVideos.length);
-                console.log('Pending details:', pendingVideos);
+                console.log('Failed:', failed.length);
+                console.log('Processing details:', processing);
+                console.log('Failed details:', failed);
                 console.log('====================================');
               }}
             >
@@ -840,12 +903,14 @@ export default function VideoListNew() {
       <ErrorModal />
 
       {/* Floating Bottom Warning */}
-      <View style={styles.floatingBottomWarning}>
-        <BottomButtonSectionWithText
-          pendingCount={pendingVideosCount}
-          onRetryPress={handleBottomRetry}
-        />
-      </View>
+      {showBottomWarning && (
+        <View style={styles.floatingBottomWarning}>
+          <BottomButtonSectionWithText
+            pendingCount={pendingVideosCount}
+            onRetryPress={handleBottomRetry}
+          />
+        </View>
+      )}
     </>
   );
 }
