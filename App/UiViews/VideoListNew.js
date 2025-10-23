@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { ThemeColors } from '../AppTheme';
 import {
@@ -37,6 +37,7 @@ import {
   updateVideoStatus,
 } from '../Features/Videos/VideosSlice';
 import { useAppStatus } from '../Hooks/useAppStatus';
+import { useNetworkStatus } from '../Hooks/useNetworkStatus';
 import DownloadManager from '../Service/DownloadManager';
 import FileSystemService from '../Service/FileSystemService';
 import * as VideoComparison from '../Utils/VideoComparison';
@@ -53,12 +54,9 @@ import * as VideoComparison from '../Utils/VideoComparison';
  */
 export default function VideoListNew() {
   const dispatch = useDispatch();
-  // let [isOnline, setIsOnline] = useState(false);
-  // const { isOnline } = useNetworkStatus();
-  // let isOnline = false;
+  const { isOnline } = useNetworkStatus();
   const { appStatus } = useAppStatus();
 
-  let [isOnline, setIsOnline] = useState(true);
   // useEffect(() => {
   //   setTimeout(() => {
   //     setIsOnline(true);
@@ -68,7 +66,6 @@ export default function VideoListNew() {
   //     }, 4000);
   //   }, 2000);
   // }, [isOnline]);
-
   // Redux state
   const videosState = useSelector(state => state.videosStore);
   const appConfig = useSelector(state => state.appConfig);
@@ -696,14 +693,14 @@ export default function VideoListNew() {
     // Show downloaded videos (or empty state if none)
     return (
       <View style={styles.container}>
-        <View>
+        {/* <View>
           <Button
             title="Refresh"
             onPress={() => {
               setIsOnline(!isOnline);
             }}
           />
-        </View>
+        </View> */}
         <OfflineHeader downloadedCount={downloadedCount} />
         <VideoSearchBar
           onSearch={handleSearch}
@@ -716,7 +713,9 @@ export default function VideoListNew() {
           onRefresh={handleRefresh}
           isRefreshing={isRefreshing}
         />
-        <DownloadingProcessModal onPress={() => setIsOnline(!isOnline)} />
+        <DownloadingProcessModal
+        // onPress={() => setIsOnline(!isOnline)}
+        />
       </View>
     );
   }
@@ -775,14 +774,14 @@ export default function VideoListNew() {
   return (
     <>
       <View style={styles.container}>
-        <View>
+        {/* <View>
           <Button
             title="Refresh"
             onPress={() => {
               setIsOnline(!isOnline);
             }}
           />
-        </View>
+        </View> */}
         {renderVideoList()}
 
         {/* DEBUG BUTTON */}
