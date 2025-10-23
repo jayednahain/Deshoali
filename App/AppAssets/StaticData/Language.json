@@ -146,5 +146,17 @@
   "Download_in_Progress": {
     "english": "Download in Progress",
     "bangla": "ডাউনলোড চলছে"
+  },
+  "keep_connection": {
+    "english": "Keep internet connection active!",
+    "bangla": "ইন্টারনেট সংযোগ চালু রাখুন !"
+  },
+  "keep_app_active": {
+    "english": "Keep the mobile app active!",
+    "bangla": "অনুগ্রহ পূর্বক মোবাইল এপ কার্যক্রম চালু রাখুন !"
+  },
+  "download_complete": {
+    "english": "Download Complete",
+    "bangla": "ভিডিও ডাউনলোড সম্পন্ন"
   }
 }
