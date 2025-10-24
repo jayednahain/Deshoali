@@ -43,13 +43,13 @@ export default function VideoPlayer({
 
   // Debug state changes
   useEffect(() => {
-    console.log('[VideoPlayer] State:', {
-      isPlaying,
-      currentTime: currentTime.toFixed(2),
-      duration: duration.toFixed(2),
-      isSeeking,
-      isLoading,
-    });
+    // console.log('[VideoPlayer] State:', {
+    //   isPlaying,
+    //   currentTime: currentTime.toFixed(2),
+    //   duration: duration.toFixed(2),
+    //   isSeeking,
+    //   isLoading,
+    // });
   }, [isPlaying, currentTime, duration, isSeeking, isLoading]);
 
   // Extract video data
@@ -389,7 +389,7 @@ export default function VideoPlayer({
           )}
 
           {/* Debug info in development */}
-          {__DEV__ && (
+          {/* {__DEV__ && (
             <View style={styles.debugInfo}>
               <Text style={styles.debugText}>
                 Time: {formatTime(currentTime)} / {formatTime(duration)}
@@ -402,7 +402,7 @@ export default function VideoPlayer({
                 {isPlaying ? 'YES' : 'NO'}
               </Text>
             </View>
-          )}
+          )} */}
 
           {/* Controls overlay - ALWAYS can receive touches */}
           <Animated.View
