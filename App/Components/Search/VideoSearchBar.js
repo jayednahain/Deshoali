@@ -27,13 +27,24 @@ export default function VideoSearchBar({
     onSearch(''); // Clear search results
   }, [onSearch]);
 
+  const handleChangeText = useCallback(
+    text => {
+      setSearchText(text);
+      // Clear search results when text is empty
+      if (text.trim() === '') {
+        onSearch('');
+      }
+    },
+    [onSearch],
+  );
+
   return (
     <View style={styles.container}>
       <View style={styles.searchContainer}>
         <TextInput
           style={styles.searchInput}
           value={searchText}
-          onChangeText={setSearchText}
+          onChangeText={handleChangeText}
           placeholder={placeholder}
           placeholderTextColor={ThemeColors.colorGray}
           editable={!isSearching}
