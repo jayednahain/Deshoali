@@ -22,8 +22,8 @@ export {
   DownloadingProcessModal,
   ErrorModal,
   OfflineHeader,
+  setErrorModalRetryCallback,
   VideoListRenderer,
   VideoPlayer,
   VideoSearchBar,
-  setErrorModalRetryCallback,
 };

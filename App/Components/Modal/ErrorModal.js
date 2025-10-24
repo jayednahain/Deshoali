@@ -20,24 +20,9 @@ import useAppLanguage from '../../Hooks/useAppLagnuage';
 let globalRetryCallback = null;
 
 // Export function to set retry callback from outside
-export const setErrorModalRetryCallback = (retryCallback) => {
+export const setErrorModalRetryCallback = retryCallback => {
   globalRetryCallback = retryCallback;
 };
-
-/**
- * ErrorModal Component
- *
- * Displays different types of error modals:
- * - API errors (network issues, server errors)
- * - Download errors (file system, storage issues)
- * - General application errors
- *
- * Features:
- * - Retry functionality with custom actions
- * - Cancellation support
- * - Different UI variants based on error type
- * - Multi-language support
- */
 
 const ErrorModal = () => {
   const dispatch = useDispatch();
@@ -96,7 +81,7 @@ const ErrorModal = () => {
   // Handle offline action (view downloaded videos)
   const handleOffline = () => {
     console.log('[ErrorModal] Offline button pressed - Just hiding modal');
-    
+
     // Just hide the modal - that's it! Offline videos will show underneath
     dispatch(hideErrorModal());
   };
