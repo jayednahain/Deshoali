@@ -87,7 +87,7 @@ export default function VideoListRenderer({
 const styles = StyleSheet.create({
   listContainer: {
     padding: 16,
-    paddingBottom: 32,
+    paddingBottom: '20%',
   },
   emptyContainer: {
     flex: 1,

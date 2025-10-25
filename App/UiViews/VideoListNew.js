@@ -314,6 +314,31 @@ export default function VideoListNew() {
   }, [videos, localVideos, videosWithStatus.length, isOnline, dispatch]);
 
   // ====================
+  // useEffect 4.5: Check for FAILED videos on app load/merge complete
+  // ====================
+  useEffect(() => {
+    // Only check after videos are merged and modal is NOT visible
+    if (
+      videosWithStatus &&
+      videosWithStatus.length > 0 &&
+      !downloadingProcessModal?.visible
+    ) {
+      const failedVids = videosWithStatus.filter(v => v.status === 'FAILED');
+
+      if (failedVids.length > 0) {
+        console.log(
+          `[VideoListNew] 🔍 Found ${failedVids.length} FAILED videos on load/merge`,
+        );
+        setPendingVideosCount(failedVids.length);
+        setShowBottomWarning(true);
+      } else {
+        // No failed videos, hide warning if it was showing
+        setShowBottomWarning(false);
+      }
+    }
+  }, [videosWithStatus, downloadingProcessModal?.visible]);
+
+  // ====================
   // useEffect 5: Server synchronization (2s delay)
   // ====================
   useEffect(() => {
