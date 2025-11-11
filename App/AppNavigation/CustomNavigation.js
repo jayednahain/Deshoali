@@ -15,13 +15,14 @@ const AppNavigation = () => {
       headerShadowVisible: false,
       headerTitleAlign: 'center',
       title: i18n('video_list_title'),
+
       headerStyle: {
         backgroundColor: '#4D870E',
-        borderRadius: 10,
+        // borderRadius: 10,
       },
       headerTitleStyle: {
         fontWeight: 'bold',
-        fontSize: 16,
+        fontSize: 20,
         color: '#FFFFFF',
       },
     };

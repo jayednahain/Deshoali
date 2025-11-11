@@ -40,16 +40,10 @@ export default function VideoPlayer({
   const [isMuted, setIsMuted] = useState(false);
   const [isSeeking, setIsSeeking] = useState(false);
   const [videoKey, setVideoKey] = useState(0);
+  const [useSoftwareDecoder, setUseSoftwareDecoder] = useState(false);
 
-  // Debug state changes
   useEffect(() => {
-    // console.log('[VideoPlayer] State:', {
-    //   isPlaying,
-    //   currentTime: currentTime.toFixed(2),
-    //   duration: duration.toFixed(2),
-    //   isSeeking,
-    //   isLoading,
-    // });
+    console.log('videoData:videoData: ', JSON.stringify(videoData));
   }, [isPlaying, currentTime, duration, isSeeking, isLoading]);
 
   // Extract video data
@@ -212,7 +206,7 @@ export default function VideoPlayer({
     data => {
       // Only update if not seeking to prevent slider jumping
       if (!isSeeking && data && data.currentTime >= 0) {
-        console.log('[VideoPlayer] Progress update:', data.currentTime);
+        // console.log('[VideoPlayer] Progress update:', data.currentTime);
         setCurrentTime(data.currentTime);
       }
     },
@@ -255,9 +249,22 @@ export default function VideoPlayer({
           errorStr.includes('codec') ||
           errorCode.includes('24003')
         ) {
-          errorTitle = 'Video Format Error';
-          errorMessage =
-            'This video format is not supported on your device. The video may need to be re-encoded to H.264 format.';
+          errorTitle = 'Hardware Decoder Error';
+          if (!useSoftwareDecoder) {
+            // First attempt with software decoder
+            console.log(
+              '[VideoPlayer] Hardware decoder failed, trying software decoder',
+            );
+            setUseSoftwareDecoder(true);
+            setVideoKey(prev => prev + 1); // Force remount with software decoder
+            setIsLoading(true);
+            setCurrentTime(0);
+            setIsPlaying(false);
+            return; // Don't show alert, just retry
+          } else {
+            errorMessage =
+              'Video playback failed. This video format may not be supported on your device.';
+          }
         } else if (errorStr.includes('network') || errorStr.includes('io')) {
           errorTitle = 'File Error';
           errorMessage =
@@ -283,7 +290,7 @@ export default function VideoPlayer({
         ],
       );
     },
-    [i18n],
+    [i18n, useSoftwareDecoder],
   );
 
   const formatTime = useCallback(seconds => {
@@ -334,7 +341,12 @@ export default function VideoPlayer({
       style={[styles.container, isFullscreen && styles.fullscreenContainer]}
     >
       <TouchableWithoutFeedback onPress={handleVideoTap}>
-        <View style={styles.videoContainer}>
+        <View
+          style={[
+            styles.videoContainer,
+            isFullscreen && styles.fullscreenVideoContainer,
+          ]}
+        >
           <Video
             key={videoKey}
             ref={videoRef}
@@ -349,15 +361,15 @@ export default function VideoPlayer({
             onError={onError}
             progressUpdateInterval={250}
             onLoadStart={() => {
-              console.log('[VideoPlayer] Video load started');
+              // console.log('[VideoPlayer] Video load started');
               setIsLoading(true);
             }}
-            onReadyForDisplay={() => {
-              console.log('[VideoPlayer] Video ready for display');
-            }}
-            onPlaybackStateChanged={state => {
-              console.log('[VideoPlayer] Playback state changed:', state);
-            }}
+            // onReadyForDisplay={() => {
+            //   console.log('[VideoPlayer] Video ready for display');
+            // }}
+            // onPlaybackStateChanged={state => {
+            //   console.log('[VideoPlayer] Playback state changed:', state);
+            // }}
             playWhenInactive={false}
             playInBackground={false}
             allowsExternalPlayback={false}
@@ -377,6 +389,8 @@ export default function VideoPlayer({
             selectedVideoTrack={{
               type: 'auto',
             }}
+            // Add decoder fallback configuration
+            preferSoftwareDecoder={useSoftwareDecoder}
           />
 
           {/* Loading overlay */}
@@ -477,13 +491,29 @@ const styles = StyleSheet.create({
   fullscreenContainer: {
     flex: 1,
     aspectRatio: undefined,
+    width: '100%',
+    height: '100%',
   },
   videoContainer: {
     flex: 1,
     position: 'relative',
+    width: '100%',
+  },
+  fullscreenVideoContainer: {
+    // marginLeft: '10%',
+    backgroundColor: 'red',
+    position: 'absolute',
+    top: 0,
+    left: 50,
+    right: 50,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
   },
   video: {
     flex: 1,
+    width: '100%',
+    height: '100%',
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,

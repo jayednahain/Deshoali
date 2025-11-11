@@ -3,8 +3,12 @@ import { useState } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Collapsible from 'react-native-collapsible';
 import { useSelector } from 'react-redux';
-import { ArrowIconDownWhite, PlayButtonIcon } from '../../AppAssets/SvgLogos';
-import { H4, TextPrimary } from '../../AppTheme';
+import {
+  ArrowIconDownWhite,
+  ArrowIconUp,
+  PlayButtonIcon,
+} from '../../AppAssets/SvgLogos';
+import { H4, TextPrimary, ThemeColors } from '../../AppTheme';
 import useAppLanguage from '../../Hooks/useAppLagnuage';
 import { UtilityFunctions } from '../../UtilityFunctions/UtilityFunctions';
 import ButtonSquare from '../Button/ButtonSquare';
@@ -107,7 +111,14 @@ export default function CardVideoListItem({ cardItem }) {
   const renderMiddleSection = () => {
     return (
       <View style={styles.middleSection}>
-        <H4 numberOfLines={2} ellipsizeMode="tail">
+        <H4
+          textStyle={{
+            fontWeight: !collapsed ? '600' : 'normal',
+            // color: !collapsed && ThemeColors.colorWhite,
+          }}
+          numberOfLines={2}
+          ellipsizeMode="tail"
+        >
           {name}
         </H4>
         {renderCollapsedContent()}
@@ -139,6 +150,10 @@ export default function CardVideoListItem({ cardItem }) {
           styles.cardContainer,
           status === 'FAILED' && styles.failedCardContainer,
           isCurrentlyDownloading && styles.downloadingCardContainer,
+          !collapsed && {
+            borderColor: ThemeColors.colorPrimary,
+            borderWidth: 2,
+          },
         ]}
         onPress={() => {
           handleVideoPress();
@@ -148,7 +163,7 @@ export default function CardVideoListItem({ cardItem }) {
         <PlayButtonIcon />
         {renderMiddleSection()}
         <ButtonSquare
-          logo={<ArrowIconDownWhite />}
+          logo={!collapsed ? <ArrowIconUp /> : <ArrowIconDownWhite />}
           onPress={() => setCollapsed(!collapsed)}
         />
       </TouchableOpacity>

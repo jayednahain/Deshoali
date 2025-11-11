@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo } from 'react';
-import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
-import { ThemeColors } from '../../AppTheme';
+import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
+import { H1, ThemeColors } from '../../AppTheme';
+import useAppLanguage from '../../Hooks/useAppLagnuage';
 import CardVideoListItem from '../Card/CardVideoListItem';
 
 export default function VideoListRenderer({
@@ -9,6 +10,7 @@ export default function VideoListRenderer({
   onRefresh,
   isRefreshing = false,
 }) {
+  const { i18n } = useAppLanguage();
   // Memoize the filtered data to prevent unnecessary re-renders
   const dataToRender = useMemo(() => {
     if (!Array.isArray(videos)) {
@@ -43,15 +45,13 @@ export default function VideoListRenderer({
   if (dataToRender.length === 0) {
     return (
       <View style={styles.emptyContainer}>
-        <Text style={styles.emptyText}>
-          {isOnline
-            ? 'No videos available'
-            : 'No downloaded videos available offline'}
-        </Text>
+        <H1 style={styles.emptyText}>
+          {isOnline ? i18n('no_videos') : i18n('no_internet_download_message')}
+        </H1>
         {!isOnline && (
-          <Text style={styles.emptySubText}>
-            Connect to internet to download videos
-          </Text>
+          <H1 style={styles.emptySubText}>
+            {i18n('connect_to_internet_for_video_download')}
+          </H1>
         )}
       </View>
     );

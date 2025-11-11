@@ -36,6 +36,7 @@ import {
   startAutoDownloadThunk,
   updateVideoStatus,
 } from '../Features/Videos/VideosSlice';
+import useAppLanguage from '../Hooks/useAppLagnuage';
 import { useAppStatus } from '../Hooks/useAppStatus';
 import { useNetworkStatus } from '../Hooks/useNetworkStatus';
 import DownloadManager from '../Service/DownloadManager';
@@ -55,18 +56,10 @@ import * as VideoComparison from '../Utils/VideoComparison';
 export default function VideoListNew() {
   const dispatch = useDispatch();
   const { isOnline } = useNetworkStatus();
+  // const isOnline = false;
   const { appStatus } = useAppStatus();
+  const { i18n } = useAppLanguage();
 
-  // useEffect(() => {
-  //   setTimeout(() => {
-  //     setIsOnline(true);
-
-  //     setTimeout(() => {
-  //       setIsOnline(false);
-  //     }, 4000);
-  //   }, 2000);
-  // }, [isOnline]);
-  // Redux state
   const videosState = useSelector(state => state.videosStore);
   const appConfig = useSelector(state => state.appConfig);
   const downloadingProcessModal = useSelector(
@@ -738,7 +731,7 @@ export default function VideoListNew() {
         <VideoSearchBar
           onSearch={handleSearch}
           isSearching={isSearching}
-          placeholder="Search videos by title (min 3 chars)..."
+          placeholder={i18n('type_video_name')}
         />
         <VideoListRenderer
           videos={displayVideos}
@@ -787,7 +780,7 @@ export default function VideoListNew() {
         <VideoSearchBar
           onSearch={handleSearch}
           isSearching={isSearching}
-          placeholder="Search videos by title (min 3 chars)..."
+          placeholder={i18n('type_video_name')}
         />
         <VideoListRenderer
           videos={downloadedVideos}
@@ -795,9 +788,7 @@ export default function VideoListNew() {
           onRefresh={handleRefresh}
           isRefreshing={isRefreshing}
         />
-        <DownloadingProcessModal
-        // onPress={() => setIsOnline(!isOnline)}
-        />
+        <DownloadingProcessModal />
       </View>
     );
   }
@@ -834,7 +825,7 @@ export default function VideoListNew() {
           <VideoSearchBar
             onSearch={handleSearch}
             isSearching={isSearching}
-            placeholder="Search videos by title (min 3 chars)..."
+            placeholder={i18n('type_video_name')}
           />
           <VideoListRenderer
             videos={offlineVideosList}
@@ -922,11 +913,9 @@ export default function VideoListNew() {
           </View>
         )} */}
       </View>
-
       <CustomLoader visible={showLoader} />
       <DownloadingProcessModal />
       <ErrorModal />
-
       {/* Floating Bottom Warning */}
       {showBottomWarning && (
         <View style={styles.floatingBottomWarning}>
@@ -936,6 +925,13 @@ export default function VideoListNew() {
           />
         </View>
       )}
+      {/* x
+      <View style={styles.floatingBottomWarning}>
+        <BottomButtonSectionWithText
+          pendingCount={pendingVideosCount}
+          onRetryPress={handleBottomRetry}
+        />
+      </View> */}
     </>
   );
 }

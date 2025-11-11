@@ -158,5 +158,29 @@
   "download_complete": {
     "english": "Download Complete",
     "bangla": "ভিডিও ডাউনলোড সম্পন্ন"
+  },
+  "type_video_name": {
+    "english": "Type video name...",
+    "bangla": "ভিডিওর নাম লিখে খুজুন "
+  },
+  "clear_search": {
+    "english": "Clear",
+    "bangla": "মুছে ফেলুন"
+  },
+  "search_button": {
+    "english": "Search",
+    "bangla": "খুঁজুন"
+  },
+  "connect_to_internet_for_video_download": {
+    "english": "Connect to internet to download videos",
+    "bangla": "ভিডিও ডাউনলোড করার জন্য ইন্টারনেট সংযোগ করুন"
+  },
+  "offline_mode": {
+    "english": "Offline Mode",
+    "bangla": "ইন্টারনেট সংযোগ নেই "
+  },
+  "no_of_downloaded_videos": {
+    "english": "Number of downloaded videos : ",
+    "bangla": "ডাউনলোড করা ভিডিওর সংখ্যা : "
   }
 }

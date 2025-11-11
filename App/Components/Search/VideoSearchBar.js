@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { ThemeColors } from '../../AppTheme';
+import useAppLanguage from '../../Hooks/useAppLagnuage';
 
 export default function VideoSearchBar({
   onSearch,
@@ -15,6 +16,7 @@ export default function VideoSearchBar({
   placeholder = 'Search videos...',
 }) {
   const [searchText, setSearchText] = useState('');
+  const { i18n } = useAppLanguage();
 
   const handleSearch = useCallback(() => {
     if (searchText.trim() && searchText.trim().length >= 3 && !isSearching) {
@@ -59,7 +61,7 @@ export default function VideoSearchBar({
               onPress={handleClear}
               disabled={isSearching}
             >
-              <Text style={styles.clearButtonText}>Clear</Text>
+              <Text style={styles.clearButtonText}>{i18n('clear_search')}</Text>
             </TouchableOpacity>
           )}
 
@@ -75,7 +77,7 @@ export default function VideoSearchBar({
             {isSearching ? (
               <ActivityIndicator size="small" color={ThemeColors.colorWhite} />
             ) : (
-              <Text style={styles.searchButtonText}>Search</Text>
+              <Text style={styles.searchButtonText}>{i18n('search')}</Text>
             )}
           </TouchableOpacity>
         </View>

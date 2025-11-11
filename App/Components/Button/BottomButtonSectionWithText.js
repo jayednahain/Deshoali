@@ -61,13 +61,15 @@ const BottomButtonSectionWithText = ({
 
 const styles = StyleSheet.create({
   container: {
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#FFF3CD', // Light yellow warning background
+    borderTopColor: '#FFF3CD', // Light yellow warning background
     borderTopWidth: 2,
-    borderTopColor: '#FFD43B',
+    backgroundColor: '#df5959ff',
     paddingVertical: 12,
     paddingHorizontal: 16,
     shadowColor: '#000',
@@ -97,8 +99,8 @@ const styles = StyleSheet.create({
   },
   warningText: {
     fontSize: 14,
-    color: '#856404',
-    fontWeight: '500',
+    color: ThemeColors.colorWhite,
+    fontWeight: '600',
     lineHeight: 20,
   },
   retryButton: {

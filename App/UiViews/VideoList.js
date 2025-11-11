@@ -40,12 +40,14 @@ import AppStore from '../ReduxStore/store';
 import DownloadManager from '../Service/DownloadManager';
 import FileSystemService from '../Service/FileSystemService';
 // import VideoComparison from '../Service/VideoComparison';
+import useAppLanguage from '../Hooks/useAppLagnuage';
 import * as VideoComparison from '../Utils/VideoComparison';
 
 export default function VideoList() {
   const dispatch = useDispatch();
   const { isOnline } = useNetworkStatus();
   const { appStatus } = useAppStatus();
+  const { i18n } = useAppLanguage();
 
   // Get Redux state - be careful with destructuring
   const videosState = useSelector(state => state.videosStore);
@@ -625,7 +627,7 @@ export default function VideoList() {
         <VideoSearchBar
           onSearch={handleSearch}
           isSearching={isSearching}
-          placeholder="Search videos by title (min 3 chars)..."
+          placeholder={i18n('type_video_name')}
         />
 
         {/* Video list */}

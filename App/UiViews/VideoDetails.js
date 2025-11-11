@@ -1,5 +1,5 @@
 import { useNavigation, useRoute } from '@react-navigation/native';
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   BackHandler,
@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import Orientation from 'react-native-orientation-locker';
-import { ThemeColors } from '../AppTheme';
+import { H2, ThemeColors } from '../AppTheme';
 import VideoPlayer from '../Components/Player/VideoPlayer';
 import { useAppLanguage } from '../Hooks/useAppLagnuage';
 
@@ -191,7 +191,8 @@ export default function VideoDetails() {
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={handleGoBack}>
             <Text style={styles.backButtonText}>
-              ← {i18n('back') || 'Back'}
+              <H2>←</H2>
+              {i18n('back') || 'Back'}
             </Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle} numberOfLines={1}>
@@ -200,22 +201,29 @@ export default function VideoDetails() {
         </View>
       )}
 
-      {/* Video Player Container */}
       <View
-        style={[
-          styles.playerContainer,
-          isFullscreen && styles.fullscreenPlayer,
-        ]}
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          backgroundColor: ThemeColors.colorBlack,
+        }}
       >
-        <VideoPlayer
-          videoData={videoData}
-          onFullscreenToggle={handleFullscreenToggle}
-          isFullscreen={isFullscreen}
-        />
-      </View>
+        {/* Video Player Container */}
+        <View
+          style={[
+            styles.playerContainer,
+            isFullscreen && styles.fullscreenPlayer,
+          ]}
+        >
+          <VideoPlayer
+            videoData={videoData}
+            onFullscreenToggle={handleFullscreenToggle}
+            isFullscreen={isFullscreen}
+          />
+        </View>
 
-      {/* Video Information - Hide in fullscreen */}
-      {!isFullscreen && (
+        {/* Video Information - Hide in fullscreen */}
+        {/* {!isFullscreen && (
         <View style={styles.infoContainer}>
           <Text style={styles.videoTitle}>{name}</Text>
 
@@ -248,7 +256,8 @@ export default function VideoDetails() {
             )}
           </View>
         </View>
-      )}
+      )} */}
+      </View>
     </View>
   );
 }
@@ -275,14 +284,17 @@ const styles = StyleSheet.create({
   },
   backButton: {
     marginRight: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   backButtonText: {
+    alignItems: 'center',
+    fontSize: 20,
     color: ThemeColors.colorWhite,
-    fontSize: 16,
     fontWeight: '500',
   },
   headerTitle: {
-    flex: 1,
+    // flex: 1,
     color: ThemeColors.colorWhite,
     fontSize: 18,
     fontWeight: 'bold',
