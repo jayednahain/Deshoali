@@ -1,6 +1,8 @@
 import RNFS from 'react-native-fs';
+import NetInfo from '@react-native-community/netinfo';
 import FileSystemService from './FileSystemService';
 import LocalStorageService from './LocalStorageService';
+import Toast from 'react-native-toast-message';
 
 /**
  * DownloadManager - Singleton service for sequential video downloads
@@ -31,6 +33,14 @@ class DownloadManager {
     this.statusCallback = null; // Callback for status updates
     this.modalCallback = null; // NEW (Phase 3): Callback for modal updates
     this.downloadJob = null; // Current RNFS download job (for cancellation)
+    
+    // NEW: Network monitoring
+    this.isNetworkAvailable = true; // Track network status
+    this.networkUnsubscribe = null; // NetInfo listener
+    this.pausedDueToNetwork = false; // Track if we paused due to network loss
+    
+    // Initialize network monitoring
+    this._initializeNetworkMonitoring();
 
     console.log(`${this.logPrefix} Initialized singleton instance`);
     DownloadManager.instance = this;
@@ -45,6 +55,64 @@ class DownloadManager {
       DownloadManager.instance = new DownloadManager();
     }
     return DownloadManager.instance;
+  }
+
+  /**
+   * Initialize network monitoring
+   * @private
+   */
+  _initializeNetworkMonitoring() {
+    try {
+      // Check initial network state
+      NetInfo.fetch().then(state => {
+        this.isNetworkAvailable = state.isConnected && state.isInternetReachable;
+        console.log(
+          `${this.logPrefix} Initial network state: ${this.isNetworkAvailable}`,
+        );
+      });
+
+      // Listen for network state changes
+      this.networkUnsubscribe = NetInfo.addEventListener(state => {
+        const wasNetworkAvailable = this.isNetworkAvailable;
+        this.isNetworkAvailable =
+          state.isConnected && state.isInternetReachable;
+
+        console.log(
+          `${this.logPrefix} Network state changed: ${wasNetworkAvailable} → ${this.isNetworkAvailable}`,
+        );
+
+        // Handle network loss during active download
+        if (
+          wasNetworkAvailable &&
+          !this.isNetworkAvailable &&
+          (this.isProcessing || this.currentDownload)
+        ) {
+          console.warn(
+            `${this.logPrefix} ⚠️ NETWORK LOST during download! Pausing queue...`,
+          );
+          this.pausedDueToNetwork = true;
+          this._pauseDownloadDueToNetwork();
+        }
+
+        // Handle network restoration
+        if (
+          !wasNetworkAvailable &&
+          this.isNetworkAvailable &&
+          this.pausedDueToNetwork
+        ) {
+          console.log(
+            `${this.logPrefix} ✅ Network restored! Resuming downloads...`,
+          );
+          this.pausedDueToNetwork = false;
+          this._resumeDownloadsAfterNetworkRestore();
+        }
+      });
+    } catch (error) {
+      console.error(
+        `${this.logPrefix} Error initializing network monitoring:`,
+        error,
+      );
+    }
   }
 
   /**
@@ -160,6 +228,15 @@ class DownloadManager {
       );
 
       while (this.downloadQueue.length > 0) {
+        // NEW: Check network before processing
+        if (!this.isNetworkAvailable) {
+          console.warn(
+            `${this.logPrefix} No network available, pausing queue processing`,
+          );
+          this.isProcessing = false;
+          return false;
+        }
+
         // Get next video from queue
         const video = this.downloadQueue.shift();
 
@@ -577,7 +654,7 @@ class DownloadManager {
   }
 
   /**
-   * Update progress via callback
+   * Update progress via callback (with safety checks)
    * @private
    */
   _updateProgress(videoId, progress) {
@@ -589,7 +666,10 @@ class DownloadManager {
         this.progressCallback(videoId, progress);
       }
     } catch (error) {
-      console.error(`${this.logPrefix} Error in progress callback:`, error);
+      console.error(
+        `${this.logPrefix} Error in progress callback:`,
+        error,
+      );
     }
   }
 
@@ -615,7 +695,10 @@ class DownloadManager {
         }
       }
     } catch (error) {
-      console.error(`${this.logPrefix} Error in status callback:`, error);
+      console.error(
+        `${this.logPrefix} Error in status callback:`,
+        error,
+      );
     }
   }
 
@@ -634,6 +717,67 @@ class DownloadManager {
       }
     } catch (error) {
       console.error(`${this.logPrefix} Error in modal callback:`, error);
+    }
+  }
+
+  /**
+   * Pause download due to network loss
+   * @private
+   */
+  _pauseDownloadDueToNetwork() {
+    try {
+      // Cancel current download if any
+      if (this.downloadJob) {
+        console.log(`${this.logPrefix} Cancelling current download job`);
+        this.downloadJob.stopPausedDownload();
+        this.downloadJob = null;
+      }
+
+      // Update current download status to FAILED
+      if (this.currentDownload) {
+        this._updateStatus(this.currentDownload.id, 'FAILED');
+        const videoName = this.currentDownload.name || 'Unknown';
+        
+        // Show toast notification
+        Toast.show({
+          type: 'error',
+          text1: 'Download Paused',
+          text2: `Network lost while downloading: ${videoName}. Tap to retry.`,
+          duration: 3000,
+        });
+      }
+
+      // Stop processing queue
+      this.isProcessing = false;
+    } catch (error) {
+      console.error(
+        `${this.logPrefix} Error pausing download due to network:`,
+        error,
+      );
+    }
+  }
+
+  /**
+   * Resume downloads after network is restored
+   * @private
+   */
+  _resumeDownloadsAfterNetworkRestore() {
+    try {
+      // Show toast notification
+      Toast.show({
+        type: 'success',
+        text1: 'Network Restored',
+        text2: 'Ready to resume downloads. Refresh to continue.',
+        duration: 2000,
+      });
+
+      console.log(`${this.logPrefix} Waiting for manual retry from user`);
+      // Don't automatically resume - let user initiate refresh or retry
+    } catch (error) {
+      console.error(
+        `${this.logPrefix} Error resuming downloads after network restore:`,
+        error,
+      );
     }
   }
 
