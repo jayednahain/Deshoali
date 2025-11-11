@@ -1,8 +1,9 @@
-import RNFS from 'react-native-fs';
 import NetInfo from '@react-native-community/netinfo';
+import RNFS from 'react-native-fs';
+import Toast from 'react-native-toast-message';
+import CrashReportService from './CrashReportService';
 import FileSystemService from './FileSystemService';
 import LocalStorageService from './LocalStorageService';
-import Toast from 'react-native-toast-message';
 
 /**
  * DownloadManager - Singleton service for sequential video downloads
@@ -33,12 +34,16 @@ class DownloadManager {
     this.statusCallback = null; // Callback for status updates
     this.modalCallback = null; // NEW (Phase 3): Callback for modal updates
     this.downloadJob = null; // Current RNFS download job (for cancellation)
-    
+
     // NEW: Network monitoring
     this.isNetworkAvailable = true; // Track network status
     this.networkUnsubscribe = null; // NetInfo listener
     this.pausedDueToNetwork = false; // Track if we paused due to network loss
-    
+
+    // DEBUG MODE: Simulate network error
+    this.debugSimulateError = false; // Can be toggled from UI
+    this.debugTimeoutId = null; // Store timeout ID for debugging
+
     // Initialize network monitoring
     this._initializeNetworkMonitoring();
 
@@ -65,7 +70,8 @@ class DownloadManager {
     try {
       // Check initial network state
       NetInfo.fetch().then(state => {
-        this.isNetworkAvailable = state.isConnected && state.isInternetReachable;
+        this.isNetworkAvailable =
+          state.isConnected && state.isInternetReachable;
         console.log(
           `${this.logPrefix} Initial network state: ${this.isNetworkAvailable}`,
         );
@@ -73,38 +79,50 @@ class DownloadManager {
 
       // Listen for network state changes
       this.networkUnsubscribe = NetInfo.addEventListener(state => {
-        const wasNetworkAvailable = this.isNetworkAvailable;
-        this.isNetworkAvailable =
-          state.isConnected && state.isInternetReachable;
+        try {
+          const wasNetworkAvailable = this.isNetworkAvailable;
+          this.isNetworkAvailable =
+            state.isConnected && state.isInternetReachable;
 
-        console.log(
-          `${this.logPrefix} Network state changed: ${wasNetworkAvailable} → ${this.isNetworkAvailable}`,
-        );
-
-        // Handle network loss during active download
-        if (
-          wasNetworkAvailable &&
-          !this.isNetworkAvailable &&
-          (this.isProcessing || this.currentDownload)
-        ) {
-          console.warn(
-            `${this.logPrefix} ⚠️ NETWORK LOST during download! Pausing queue...`,
-          );
-          this.pausedDueToNetwork = true;
-          this._pauseDownloadDueToNetwork();
-        }
-
-        // Handle network restoration
-        if (
-          !wasNetworkAvailable &&
-          this.isNetworkAvailable &&
-          this.pausedDueToNetwork
-        ) {
           console.log(
-            `${this.logPrefix} ✅ Network restored! Resuming downloads...`,
+            `${this.logPrefix} Network state changed: ${wasNetworkAvailable} → ${this.isNetworkAvailable}`,
           );
-          this.pausedDueToNetwork = false;
-          this._resumeDownloadsAfterNetworkRestore();
+
+          // Handle network loss during active download
+          if (
+            wasNetworkAvailable &&
+            !this.isNetworkAvailable &&
+            (this.isProcessing || this.currentDownload)
+          ) {
+            console.warn(
+              `${this.logPrefix} ⚠️ NETWORK LOST during download! Pausing queue...`,
+            );
+            this.pausedDueToNetwork = true;
+            this._pauseDownloadDueToNetwork();
+          }
+
+          // Handle network restoration
+          if (
+            !wasNetworkAvailable &&
+            this.isNetworkAvailable &&
+            this.pausedDueToNetwork
+          ) {
+            console.log(
+              `${this.logPrefix} ✅ Network restored! Resuming downloads...`,
+            );
+            this.pausedDueToNetwork = false;
+            this._resumeDownloadsAfterNetworkRestore();
+          }
+        } catch (error) {
+          console.error(
+            `${this.logPrefix} ❌ CRITICAL: Network listener callback crashed:`,
+            error,
+          );
+          CrashReportService.addLog(
+            'Network listener callback crashed',
+            'ERROR',
+            { errorMessage: error.message, stack: error.stack },
+          );
         }
       });
     } catch (error) {
@@ -162,10 +180,14 @@ class DownloadManager {
   async startAutoDownload(newVideos) {
     try {
       console.log(`${this.logPrefix} Starting auto-download process`);
+      this._logDownloadEvent('START', 'AUTO_DOWNLOAD', {
+        videoCount: newVideos?.length || 0,
+      });
 
       // Validate input
       if (!Array.isArray(newVideos) || newVideos.length === 0) {
         console.log(`${this.logPrefix} No videos to download`);
+        this._logDownloadEvent('NO_VIDEOS', 'AUTO_DOWNLOAD', {});
         return true;
       }
 
@@ -174,6 +196,7 @@ class DownloadManager {
         console.warn(
           `${this.logPrefix} Download already in progress, cannot start new download`,
         );
+        this._logDownloadEvent('ALREADY_PROCESSING', 'AUTO_DOWNLOAD', {});
         return false;
       }
 
@@ -183,6 +206,7 @@ class DownloadManager {
         console.error(
           `${this.logPrefix} Insufficient storage space for downloads`,
         );
+        this._logDownloadEvent('INSUFFICIENT_STORAGE', 'AUTO_DOWNLOAD', {});
         return false;
       }
 
@@ -309,29 +333,127 @@ class DownloadManager {
 
       console.log(`${this.logPrefix} Starting download for video ${video.id}`);
 
+      // DEBUG: Simulate network error if enabled
+      // if (this.debugSimulateError && video.id === 0) {
+      //   console.warn(
+      //     `${this.logPrefix} 🔴 DEBUG ENABLED: Will simulate network error after 5 seconds!`,
+      //   );
+      //   this.debugTimeoutId = setTimeout(() => {
+      //     console.error(
+      //       `${this.logPrefix} 🔴🔴🔴 SIMULATING NETWORK ERROR - CANCELLING DOWNLOAD!`,
+      //     );
+      //     if (this.downloadJob && this.downloadJob.promise) {
+      //       this.downloadJob.promise.cancel();
+      //       this.downloadJob = null;
+      //     }
+      //   }, 2000);
+      // }
+
       // Generate file path
       const filePath = await FileSystemService.getVideoFilePath(
         video.id,
         'mp4',
       );
 
-      // Check if file already exists
+      // Check if file already exists AND is complete
       const fileExists = await FileSystemService.checkFileExists(filePath);
       if (fileExists) {
-        console.log(
-          `${this.logPrefix} Video ${video.id} file already exists, skipping download`,
-        );
+        // ✅ NEW: Verify file size to ensure it's a complete download, not partial
+        try {
+          const fileSizeBytes = await FileSystemService.getFileSize(filePath);
+          const fileSizeMB = fileSizeBytes / (1024 * 1024);
 
-        // Save metadata and mark as downloaded
-        await LocalStorageService.saveVideoMetadata(video.id, {
-          ...video,
-          status: 'DOWNLOADED',
-          localFilePath: filePath,
-          downloadProgress: 100,
-          downloadedAt: Date.now(),
-        });
+          // ✅ IMPORTANT: If file is very small, it's incomplete/partial
+          // - 0-5MB: Almost certainly incomplete (threshold for partial detection)
+          // - 5MB+: Likely a valid small video or large partial
+          const MIN_VALID_FILE_SIZE_MB = 5;
 
-        return true;
+          console.log(
+            `${this.logPrefix} Video ${
+              video.id
+            } file exists: ${fileSizeMB.toFixed(
+              2,
+            )}MB (threshold: ${MIN_VALID_FILE_SIZE_MB}MB)`,
+          );
+
+          if (fileSizeMB < MIN_VALID_FILE_SIZE_MB) {
+            console.warn(
+              `${this.logPrefix} ⚠️ Video ${
+                video.id
+              }: File too small (${fileSizeMB.toFixed(
+                2,
+              )}MB < ${MIN_VALID_FILE_SIZE_MB}MB) - PARTIAL/CORRUPTED! Deleting and re-downloading...`,
+            );
+
+            this._logDownloadEvent('DELETE_PARTIAL_FILE', video.id, {
+              fileSizeMB: fileSizeMB.toFixed(2),
+              threshold: MIN_VALID_FILE_SIZE_MB,
+              reason: 'file_too_small_on_retry',
+            });
+
+            // Delete partial/corrupted file
+            try {
+              await FileSystemService.deleteVideoFile(filePath);
+              console.log(
+                `${this.logPrefix} ✅ Deleted partial file for video ${video.id}`,
+              );
+            } catch (deleteErr) {
+              console.error(
+                `${this.logPrefix} ❌ Could not delete partial file:`,
+                deleteErr,
+              );
+              // Continue anyway - might fail during download too
+            }
+
+            // Continue to re-download
+          } else {
+            // File is large enough - assume it's complete
+            console.log(
+              `${this.logPrefix} ✅ Video ${
+                video.id
+              }: File valid (${fileSizeMB.toFixed(
+                2,
+              )}MB >= ${MIN_VALID_FILE_SIZE_MB}MB) - SKIPPING download`,
+            );
+
+            // Save metadata and mark as downloaded
+            await LocalStorageService.saveVideoMetadata(video.id, {
+              ...video,
+              status: 'DOWNLOADED',
+              localFilePath: filePath,
+              downloadProgress: 100,
+              downloadedAt: Date.now(),
+            });
+
+            this._updateStatus(video.id, 'DOWNLOADED', filePath);
+            return true;
+          }
+        } catch (fileSizeError) {
+          console.error(
+            `${this.logPrefix} ❌ Error checking file size for video ${video.id}:`,
+            fileSizeError,
+          );
+
+          this._logDownloadEvent('FILE_SIZE_CHECK_ERROR', video.id, {
+            errorMessage: fileSizeError.message,
+          });
+
+          // If we can't check file size, delete it and re-download to be safe
+          console.warn(
+            `${this.logPrefix} ⚠️ Cannot verify file size - deleting suspicious file and re-downloading...`,
+          );
+          try {
+            await FileSystemService.deleteVideoFile(filePath);
+            console.log(
+              `${this.logPrefix} ✅ Deleted suspicious file for video ${video.id}`,
+            );
+          } catch (deleteError) {
+            console.error(
+              `${this.logPrefix} ❌ Error deleting suspicious file:`,
+              deleteError,
+            );
+          }
+        }
       }
 
       // Create download URL (assuming API provides download URL)
@@ -515,6 +637,19 @@ class DownloadManager {
     return this.downloadQueue.length;
   }
 
+  /**
+   * Toggle debug error simulation (for testing network failures)
+   * @param {boolean} enable - Enable or disable simulation
+   */
+  setDebugSimulateError(enable) {
+    this.debugSimulateError = enable;
+    console.log(
+      `${this.logPrefix} 🔴 DEBUG ERROR SIMULATION: ${
+        enable ? 'ENABLED' : 'DISABLED'
+      }`,
+    );
+  }
+
   // Private methods
 
   /**
@@ -591,9 +726,37 @@ class DownloadManager {
           .catch(error => {
             this.downloadJob = null;
             console.error(
-              `${this.logPrefix} Download error for video ${videoId}:`,
-              error,
+              `${this.logPrefix} ❌ DOWNLOAD ERROR for video ${videoId}:`,
+              {
+                errorMessage: error.message,
+                errorCode: error.code,
+                errorStack: error.stack,
+                timestamp: new Date().toISOString(),
+              },
             );
+
+            // Log to crash report service
+            this._logDownloadEvent('ERROR', videoId, {
+              errorMessage: error.message,
+              errorCode: error.code,
+              errorStack: error.stack,
+            });
+
+            // Debug: Show which callback we're about to call
+            console.warn(
+              `${this.logPrefix} 📍 Calling status callback with FAILED state...`,
+            );
+
+            // Safe callback execution - wrap in try-catch
+            try {
+              this._updateStatus(videoId, 'FAILED', 0, error.message);
+            } catch (callbackError) {
+              console.error(
+                `${this.logPrefix} ❌ ERROR in _updateStatus callback:`,
+                callbackError,
+              );
+            }
+
             resolve({ success: false, error: error.message });
           });
       } catch (error) {
@@ -666,10 +829,7 @@ class DownloadManager {
         this.progressCallback(videoId, progress);
       }
     } catch (error) {
-      console.error(
-        `${this.logPrefix} Error in progress callback:`,
-        error,
-      );
+      console.error(`${this.logPrefix} Error in progress callback:`, error);
     }
   }
 
@@ -677,28 +837,35 @@ class DownloadManager {
    * Update status via callback (enhanced to include localFilePath for DOWNLOADED status)
    * @private
    */
-  async _updateStatus(videoId, status) {
+  async _updateStatus(videoId, status, filePath = null, errorMessage = null) {
     try {
       if (this.statusCallback && typeof this.statusCallback === 'function') {
         // For DOWNLOADED status, also pass the localFilePath
         if (status === 'DOWNLOADED') {
-          const filePath = await FileSystemService.getVideoFilePath(
-            videoId,
-            'mp4',
-          );
+          const downloadedPath =
+            filePath ||
+            (await FileSystemService.getVideoFilePath(videoId, 'mp4'));
           console.log(
-            `${this.logPrefix} Download completed for video ${videoId}, file path: ${filePath}`,
+            `${this.logPrefix} Download completed for video ${videoId}, file path: ${downloadedPath}`,
           );
-          this.statusCallback(videoId, status, filePath);
+          this.statusCallback(videoId, status, downloadedPath);
+        } else if (status === 'FAILED' && errorMessage) {
+          // For FAILED status, pass error message
+          console.error(
+            `${this.logPrefix} Download failed for video ${videoId}: ${errorMessage}`,
+          );
+          this.statusCallback(videoId, status, errorMessage);
         } else {
           this.statusCallback(videoId, status);
         }
       }
     } catch (error) {
-      console.error(
-        `${this.logPrefix} Error in status callback:`,
-        error,
-      );
+      console.error(`${this.logPrefix} ❌ CRASH in _updateStatus callback:`, {
+        videoId,
+        status,
+        errorMessage: error.message,
+        stack: error.stack,
+      });
     }
   }
 
@@ -724,35 +891,89 @@ class DownloadManager {
    * Pause download due to network loss
    * @private
    */
+  /**
+   * Pause download due to network loss
+   * @private
+   */
   _pauseDownloadDueToNetwork() {
     try {
-      // Cancel current download if any
+      console.log(
+        `${this.logPrefix} 🛑 PAUSING DOWNLOADS due to network loss...`,
+      );
+
+      // ✅ FIXED: Properly cancel RNFS download job
       if (this.downloadJob) {
-        console.log(`${this.logPrefix} Cancelling current download job`);
-        this.downloadJob.stopPausedDownload();
+        try {
+          // RNFS promises have .cancel() method, not .stopDownload()
+          if (typeof this.downloadJob.cancel === 'function') {
+            this.downloadJob.cancel();
+            console.log(
+              `${this.logPrefix} ✅ Download job cancelled successfully`,
+            );
+          }
+        } catch (cancelError) {
+          console.warn(
+            `${this.logPrefix} Warning cancelling download job:`,
+            cancelError,
+          );
+        }
         this.downloadJob = null;
       }
 
-      // Update current download status to FAILED
+      this.isProcessing = false;
+      this.pausedDueToNetwork = true;
+
+      // Update current download status
       if (this.currentDownload) {
-        this._updateStatus(this.currentDownload.id, 'FAILED');
-        const videoName = this.currentDownload.name || 'Unknown';
-        
+        const errorMessage =
+          'Network connection lost. Download will resume when network is restored.';
+
+        // Save paused status to local storage
+        LocalStorageService.saveVideoMetadata(this.currentDownload.id, {
+          ...this.currentDownload,
+          status: 'PAUSED',
+          pausedAt: new Date().toISOString(),
+        }).catch(err => {
+          console.error(`${this.logPrefix} Error saving paused status:`, err);
+        });
+
+        // Call status callback with error message
+        if (this.statusCallback) {
+          try {
+            this.statusCallback(
+              this.currentDownload.id,
+              'PAUSED',
+              null,
+              errorMessage,
+            );
+          } catch (callbackError) {
+            console.error(
+              `${this.logPrefix} Error in status callback:`,
+              callbackError,
+            );
+          }
+        }
+
         // Show toast notification
         Toast.show({
           type: 'error',
-          text1: 'Download Paused',
-          text2: `Network lost while downloading: ${videoName}. Tap to retry.`,
-          duration: 3000,
+          text1: '⚠️ Download Paused',
+          text2: 'Network connection lost',
+          position: 'bottom',
         });
       }
 
-      // Stop processing queue
-      this.isProcessing = false;
+      console.log(
+        `${this.logPrefix} Queue paused. ${this.downloadQueue.length} videos waiting for network...`,
+      );
     } catch (error) {
-      console.error(
-        `${this.logPrefix} Error pausing download due to network:`,
-        error,
+      console.error(`${this.logPrefix} ❌ Error pausing download:`, error);
+
+      // Log to crash report service
+      CrashReportService.addLog(
+        'Error in _pauseDownloadDueToNetwork',
+        'ERROR',
+        { error: error.message, stack: error.stack },
       );
     }
   }
@@ -763,16 +984,41 @@ class DownloadManager {
    */
   _resumeDownloadsAfterNetworkRestore() {
     try {
+      console.log(
+        `${this.logPrefix} ✅ Network Restored! Attempting to resume...`,
+      );
+
+      // Log network restore event
+      this._logDownloadEvent('NETWORK_RESTORED', 'AUTO_DOWNLOAD', {
+        currentVideoId: this.currentDownload?.id || null,
+        currentVideoName: this.currentDownload?.name || null,
+      });
+
       // Show toast notification
       Toast.show({
         type: 'success',
-        text1: 'Network Restored',
-        text2: 'Ready to resume downloads. Refresh to continue.',
+        text1: '✅ Network Restored',
+        text2: 'Resuming downloads...',
         duration: 2000,
       });
 
-      console.log(`${this.logPrefix} Waiting for manual retry from user`);
-      // Don't automatically resume - let user initiate refresh or retry
+      // Reset the currentDownload if it was paused mid-way
+      if (this.currentDownload) {
+        console.log(`${this.logPrefix} Resuming: ${this.currentDownload.name}`);
+      }
+
+      // Resume queue processing
+      if (!this.isProcessing) {
+        console.log(`${this.logPrefix} Starting queue processor...`);
+        this.isProcessing = true;
+
+        // Start processing the queue again
+        setTimeout(() => {
+          this.processQueue().catch(err =>
+            console.error(`${this.logPrefix} Error resuming queue:`, err),
+          );
+        }, 500); // Small delay to ensure network is stable
+      }
     } catch (error) {
       console.error(
         `${this.logPrefix} Error resuming downloads after network restore:`,
@@ -791,9 +1037,28 @@ class DownloadManager {
       if (filePath) {
         const fileExists = await FileSystemService.checkFileExists(filePath);
         if (fileExists) {
+          // ✅ NEW: Get file size before deletion to log partial download info
+          try {
+            const fileSizeBytes = await FileSystemService.getFileSize(filePath);
+            const fileSizeMB = (fileSizeBytes / (1024 * 1024)).toFixed(2);
+            console.log(
+              `${this.logPrefix} Cleaning up partial file for video ${videoId} (${fileSizeMB}MB)`,
+            );
+
+            this._logDownloadEvent('CLEANUP_PARTIAL_FILE', videoId, {
+              fileSizeMB: fileSizeMB,
+              reason: 'download_failed',
+            });
+          } catch (sizeError) {
+            console.warn(
+              `${this.logPrefix} Could not get file size:`,
+              sizeError,
+            );
+          }
+
           await FileSystemService.deleteVideoFile(filePath);
           console.log(
-            `${this.logPrefix} Cleaned up partial file for video ${videoId}`,
+            `${this.logPrefix} Deleted partial file for video ${videoId}`,
           );
         }
       }
@@ -806,6 +1071,22 @@ class DownloadManager {
         `${this.logPrefix} Error cleaning up failed download:`,
         error,
       );
+    }
+  }
+
+  /**
+   * Log download event to crash report service
+   * @private
+   */
+  _logDownloadEvent(eventType, videoId, data = {}) {
+    try {
+      CrashReportService.addLog(
+        `[DOWNLOAD] ${eventType} - Video ${videoId}`,
+        'INFO',
+        data,
+      );
+    } catch (error) {
+      console.error(`${this.logPrefix} Error logging event:`, error);
     }
   }
 }

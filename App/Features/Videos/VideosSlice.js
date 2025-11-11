@@ -17,6 +17,14 @@ const initialState = {
   totalVideosToDownload: 0, // Total NEW videos to download
   videosDownloaded: 0, // Videos successfully downloaded in current session
   isDownloadingInModal: false, // Flag to indicate modal download is active
+  // Error modal state for download errors
+  downloadErrorModal: {
+    isVisible: false, // Whether error modal is shown
+    errorMessage: '', // Error message to display
+    errorType: '', // Type of error: 'NETWORK', 'FILE_ERROR', 'UNKNOWN'
+    videoId: null, // Video ID that failed
+    videoName: '', // Video name for display
+  },
   // Search functionality
   searchQuery: '', // Current search query
   searchResults: [], // Filtered search results
@@ -93,24 +101,59 @@ export const startAutoDownloadThunk = createAsyncThunk(
         }
       };
 
-      const onStatusChange = (videoId, status, localFilePath = null) => {
-        if (typeof videoId === 'number' && status) {
-          // Handle download completion with localFilePath
-          if (status === 'DOWNLOADED' && localFilePath) {
-            console.log(
-              `[VideosSlice] Download completed for video ${videoId} with file path: ${localFilePath}`,
-            );
-            dispatch(completeDownload({ videoId, status, localFilePath }));
-          } else {
-            dispatch(updateVideoStatus({ videoId, status }));
-          }
+      const onStatusChange = (
+        videoId,
+        status,
+        localFilePath = null,
+        errorMessage = null,
+      ) => {
+        try {
+          if (typeof videoId === 'number' && status) {
+            // Handle download completion with localFilePath
+            if (status === 'DOWNLOADED' && localFilePath) {
+              console.log(
+                `[VideosSlice] Download completed for video ${videoId} with file path: ${localFilePath}`,
+              );
+              dispatch(completeDownload({ videoId, status, localFilePath }));
+            } else {
+              dispatch(updateVideoStatus({ videoId, status }));
+            }
 
-          // Handle download start/completion status changes
-          if (status === 'DOWNLOADING') {
-            dispatch(setCurrentDownload(videoId));
-          } else if (status === 'DOWNLOADED' || status === 'FAILED') {
-            dispatch(setCurrentDownload(null));
+            // Handle download start/completion status changes
+            if (status === 'DOWNLOADING') {
+              dispatch(setCurrentDownload(videoId));
+            } else if (status === 'DOWNLOADED' || status === 'FAILED') {
+              dispatch(setCurrentDownload(null));
+            }
+
+            // ✅ FIX #4: Add error modal dispatch for PAUSED and FAILED
+            if (status === 'PAUSED') {
+              console.log(`[VideosSlice] Download paused for video ${videoId}`);
+              dispatch(
+                setDownloadError({
+                  errorMessage:
+                    errorMessage ||
+                    'Download paused due to network loss. Will resume when network is available.',
+                  errorType: 'NETWORK',
+                  videoId,
+                  videoName: `Video ${videoId}`,
+                }),
+              );
+            } else if (status === 'FAILED') {
+              console.log(`[VideosSlice] Download failed for video ${videoId}`);
+              dispatch(
+                setDownloadError({
+                  errorMessage:
+                    errorMessage || 'Download failed. Please try again.',
+                  errorType: 'UNKNOWN',
+                  videoId,
+                  videoName: `Video ${videoId}`,
+                }),
+              );
+            }
           }
+        } catch (error) {
+          console.error('[VideosSlice] Error in status callback:', error);
         }
       };
 
@@ -577,6 +620,37 @@ const videoSlice = createSlice({
       console.log('[VideosSlice] Reset download tracking');
     },
 
+    // Error modal actions
+    setDownloadError: (state, action) => {
+      const {
+        errorMessage,
+        errorType = 'UNKNOWN',
+        videoId = null,
+        videoName = '',
+      } = action.payload;
+      state.downloadErrorModal = {
+        isVisible: true,
+        errorMessage: errorMessage || 'An error occurred during download',
+        errorType,
+        videoId,
+        videoName,
+      };
+      console.log(
+        `[VideosSlice] Set download error: ${errorMessage} (Type: ${errorType}, Video: ${videoId})`,
+      );
+    },
+
+    clearDownloadError: state => {
+      state.downloadErrorModal = {
+        isVisible: false,
+        errorMessage: '',
+        errorType: '',
+        videoId: null,
+        videoName: '',
+      };
+      console.log('[VideosSlice] Cleared download error modal');
+    },
+
     // Search functionality
     setSearchQuery: (state, action) => {
       const query = action.payload || '';
@@ -624,6 +698,14 @@ const videoSlice = createSlice({
       state.totalVideosToDownload = 0;
       state.videosDownloaded = 0;
       state.isDownloadingInModal = false;
+      // Reset error modal
+      state.downloadErrorModal = {
+        isVisible: false,
+        errorMessage: '',
+        errorType: '',
+        videoId: null,
+        videoName: '',
+      };
       // Reset search state
       state.searchQuery = '';
       state.searchResults = [];
@@ -813,6 +895,9 @@ export const {
   incrementVideosDownloaded,
   setDownloadingInModal,
   resetDownloadTracking,
+  // Error modal actions
+  setDownloadError,
+  clearDownloadError,
   // Search actions
   setSearchQuery,
   setSearching,

@@ -479,49 +479,67 @@ export default function VideoListNew() {
       },
     );
 
-    // Status callback - handle completion/failure
-    downloadManager.setStatusCallback((videoId, status, localFilePath) => {
-      dispatch(updateVideoStatus({ videoId, status }));
+    // Status callback - handle completion/failure/pause
+    downloadManager.setStatusCallback(
+      (videoId, status, localFilePath, callbackErrorMessage) => {
+        try {
+          dispatch(updateVideoStatus({ videoId, status }));
 
-      if (status === 'DOWNLOADED') {
-        dispatch(incrementVideosDownloaded());
+          if (status === 'DOWNLOADED') {
+            dispatch(incrementVideosDownloaded());
 
-        // Check completion after a delay to ensure state updates
-        setTimeout(() => {
-          checkAndHideModalIfComplete();
-        }, 500);
-      } else if (status === 'FAILED') {
-        console.error(`[VideoListNew] Download failed: ${videoId}`);
+            // Check completion after a delay to ensure state updates
+            setTimeout(() => {
+              checkAndHideModalIfComplete();
+            }, 500);
+          } else if (status === 'PAUSED') {
+            // Network loss - don't show error modal, just keep modal visible
+            // Download will auto-resume when network returns
+            console.warn(
+              `[VideoListNew] Download paused for video ${videoId}: ${callbackErrorMessage}`,
+            );
 
-        // Hide modal
-        dispatch(hideDownloadingProcessModal());
-        dispatch(setDownloadingInModal(false));
+            // Keep modal visible, don't hide it
+            // The toast notification will be shown from DownloadManager
+          } else if (status === 'FAILED') {
+            console.error(
+              `[VideoListNew] Download failed: ${videoId} - ${callbackErrorMessage}`,
+            );
 
-        // Show error modal
-        dispatch(
-          showErrorModal({
-            title: 'ডাউনলোড ব্যর্থ',
-            message: 'ডাউনলোড করার সময় সমস্যা হয়েছে।',
-            type: 'download_error',
-            retryAction: () => {
-              setShowBottomWarning(false);
-              setShowLoader(true);
-              setTimeout(() => {
-                dispatch(fetchVideosThunk());
-              }, 500);
-            },
-            canCancel: true,
-          }),
-        );
-      }
+            // Hide modal
+            dispatch(hideDownloadingProcessModal());
+            dispatch(setDownloadingInModal(false));
 
-      // Update current download
-      if (status === 'DOWNLOADING') {
-        dispatch(setCurrentDownload(videoId));
-      } else if (status === 'DOWNLOADED' || status === 'FAILED') {
-        dispatch(setCurrentDownload(null));
-      }
-    });
+            // Show error modal with error message
+            dispatch(
+              showErrorModal({
+                title: 'ডাউনলোড ব্যর্থ',
+                message:
+                  callbackErrorMessage || 'ডাউনলোড করার সময় সমস্যা হয়েছে।',
+                type: 'download_error',
+                retryAction: () => {
+                  setShowBottomWarning(false);
+                  setShowLoader(true);
+                  setTimeout(() => {
+                    dispatch(fetchVideosThunk());
+                  }, 500);
+                },
+                canCancel: true,
+              }),
+            );
+          }
+
+          // Update current download
+          if (status === 'DOWNLOADING') {
+            dispatch(setCurrentDownload(videoId));
+          } else if (status === 'DOWNLOADED' || status === 'FAILED') {
+            dispatch(setCurrentDownload(null));
+          }
+        } catch (error) {
+          console.error('[VideoListNew] Error in status callback:', error);
+        }
+      },
+    );
 
     downloadManagerInitialized.current = true;
   }, [dispatch, checkAndHideModalIfComplete]);
@@ -689,7 +707,7 @@ export default function VideoListNew() {
   );
 
   // Bottom warning retry - Retry FAILED videos
-  const handleBottomRetry = useCallback(() => {
+  const handleBottomRetry = useCallback(async () => {
     console.log('[VideoListNew] Retrying FAILED videos...');
 
     setShowBottomWarning(false);
@@ -701,6 +719,47 @@ export default function VideoListNew() {
       console.log(
         `[VideoListNew] Resetting ${failedVids.length} FAILED videos to NEW`,
       );
+
+      // ✅ NEW: Delete partial files for all failed videos BEFORE retry
+      console.log(
+        '[VideoListNew] Cleaning up partial files from failed downloads...',
+      );
+      for (const video of failedVids) {
+        try {
+          const filePath = await FileSystemService.getVideoFilePath(
+            video.id,
+            'mp4',
+          );
+          const fileExists = await FileSystemService.checkFileExists(filePath);
+
+          if (fileExists) {
+            // Get file size to log
+            try {
+              const fileSizeBytes = await FileSystemService.getFileSize(
+                filePath,
+              );
+              const fileSizeMB = (fileSizeBytes / (1024 * 1024)).toFixed(2);
+              console.log(
+                `[VideoListNew] Deleting partial file for video ${video.id} (${fileSizeMB}MB)`,
+              );
+            } catch (sizeErr) {
+              console.warn(`[VideoListNew] Could not get file size:`, sizeErr);
+            }
+
+            // Delete the partial/corrupted file
+            await FileSystemService.deleteVideoFile(filePath);
+            console.log(
+              `[VideoListNew] ✅ Deleted partial file for video ${video.id}`,
+            );
+          }
+        } catch (error) {
+          console.error(
+            `[VideoListNew] Error cleaning up file for video ${video.id}:`,
+            error,
+          );
+          // Continue with retry even if cleanup fails
+        }
+      }
 
       // Reset each failed video to NEW
       failedVids.forEach(video => {

@@ -3,6 +3,7 @@ import { Alert } from 'react-native';
 import { useDispatch } from 'react-redux';
 import {
   setCurrentDownload,
+  setDownloadError,
   updateDownloadProgress,
   updateVideoStatus,
 } from '../Features/Videos/VideosSlice';
@@ -28,23 +29,13 @@ export const useDownloadManager = () => {
 
   // Initialize DownloadManager callbacks on mount
   useEffect(() => {
-    console.log('[useDownloadManager] Initializing DownloadManager callbacks');
-
     const downloadManager = DownloadManager.getInstance();
 
     // Set progress callback - updates Redux state for real-time UI updates
     downloadManager.setProgressCallback((videoId, progress) => {
       try {
         if (typeof videoId === 'number' && typeof progress === 'number') {
-          console.log(
-            `[useDownloadManager] Progress update: Video ${videoId} - ${progress}%`,
-          );
           dispatch(updateDownloadProgress({ videoId, progress }));
-        } else {
-          console.warn(
-            '[useDownloadManager] Invalid progress callback parameters:',
-            { videoId, progress },
-          );
         }
       } catch (error) {
         console.error(
@@ -55,43 +46,57 @@ export const useDownloadManager = () => {
     });
 
     // Set status callback - updates Redux state for status changes
-    downloadManager.setStatusCallback((videoId, status) => {
-      try {
-        if (typeof videoId === 'number' && typeof status === 'string') {
-          console.log(
-            `[useDownloadManager] Status update: Video ${videoId} -> ${status}`,
-          );
+    downloadManager.setStatusCallback(
+      (videoId, status, filePath, errorMessage) => {
+        try {
+          if (typeof videoId === 'number' && typeof status === 'string') {
+            // Update video status in Redux
+            dispatch(updateVideoStatus({ videoId, status }));
 
-          // Update video status in Redux
-          dispatch(updateVideoStatus({ videoId, status }));
+            // Update current download tracking
+            if (status === 'DOWNLOADING') {
+              dispatch(setCurrentDownload(videoId));
+            } else if (status === 'DOWNLOADED' || status === 'FAILED') {
+              dispatch(setCurrentDownload(null));
+            }
 
-          // Update current download tracking
-          if (status === 'DOWNLOADING') {
-            dispatch(setCurrentDownload(videoId));
-          } else if (status === 'DOWNLOADED' || status === 'FAILED') {
-            dispatch(setCurrentDownload(null));
+            // Handle error states - dispatch error modal
+            if (status === 'PAUSED') {
+              // Network pause - show error modal with "will resume" message
+              dispatch(
+                setDownloadError({
+                  errorMessage:
+                    errorMessage ||
+                    'Download paused. Will resume when network is available.',
+                  errorType: 'NETWORK',
+                  videoId,
+                  videoName: `Video ${videoId}`,
+                }),
+              );
+            } else if (status === 'FAILED') {
+              // Download failure - show error modal
+              dispatch(
+                setDownloadError({
+                  errorMessage:
+                    errorMessage || 'Download failed. Please try again.',
+                  errorType: 'UNKNOWN',
+                  videoId,
+                  videoName: `Video ${videoId}`,
+                }),
+              );
+            }
           }
-        } else {
-          console.warn(
-            '[useDownloadManager] Invalid status callback parameters:',
-            { videoId, status },
+        } catch (error) {
+          console.error(
+            '[useDownloadManager] Error in status callback:',
+            error,
           );
         }
-      } catch (error) {
-        console.error('[useDownloadManager] Error in status callback:', error);
-      }
-    });
-
-    console.log(
-      '[useDownloadManager] DownloadManager callbacks initialized successfully',
+      },
     );
 
     // Cleanup function (though callbacks persist for singleton lifecycle)
-    return () => {
-      console.log(
-        '[useDownloadManager] Component unmounting - callbacks remain active for singleton',
-      );
-    };
+    return () => {};
   }, [dispatch]); // Only re-run if dispatch changes (shouldn't happen)
 
   /**
@@ -101,13 +106,8 @@ export const useDownloadManager = () => {
    */
   const startSequentialDownloads = async newVideos => {
     try {
-      console.log('[useDownloadManager] Starting sequential downloads');
-
       // Validate input
       if (!Array.isArray(newVideos)) {
-        console.error(
-          '[useDownloadManager] Invalid newVideos parameter - not an array',
-        );
         Alert.alert(i18n('error'), 'Invalid videos list provided', [
           { text: i18n('ok') },
         ]);
@@ -115,46 +115,27 @@ export const useDownloadManager = () => {
       }
 
       if (newVideos.length === 0) {
-        console.log('[useDownloadManager] No new videos to download');
         return true;
       }
 
       // Validate each video object
       const validVideos = newVideos.filter(video => {
         if (!video || typeof video.id !== 'number' || !video.name) {
-          console.warn(
-            '[useDownloadManager] Filtering out invalid video:',
-            video,
-          );
           return false;
         }
         return true;
       });
 
       if (validVideos.length === 0) {
-        console.warn(
-          '[useDownloadManager] No valid videos found after filtering',
-        );
         Alert.alert(i18n('error'), 'No valid videos found for download', [
           { text: i18n('ok') },
         ]);
         return false;
       }
 
-      if (validVideos.length !== newVideos.length) {
-        console.warn(
-          `[useDownloadManager] Filtered ${
-            newVideos.length - validVideos.length
-          } invalid videos`,
-        );
-      }
-
       // Check if download is already active
       const downloadManager = DownloadManager.getInstance();
       if (downloadManager.isDownloadActive()) {
-        console.warn(
-          '[useDownloadManager] Cannot start downloads - another download is active',
-        );
         Alert.alert(
           i18n('download_in_progress'),
           i18n('download_in_progress_message'),
@@ -163,22 +144,16 @@ export const useDownloadManager = () => {
         return false;
       }
 
-      console.log(
-        `[useDownloadManager] Starting download for ${validVideos.length} valid videos`,
-      );
-
       // Start download process
       const success = await downloadManager.startAutoDownload(validVideos);
 
       if (!success) {
-        console.error('[useDownloadManager] Failed to start downloads');
         Alert.alert(i18n('error'), i18n('download_failed'), [
           { text: i18n('ok') },
         ]);
         return false;
       }
 
-      console.log('[useDownloadManager] Downloads started successfully');
       return true;
     } catch (error) {
       console.error(
@@ -200,16 +175,8 @@ export const useDownloadManager = () => {
    */
   const retryDownload = async (videoId, videoData) => {
     try {
-      console.log(
-        `[useDownloadManager] Retrying download for video ${videoId}`,
-      );
-
       // Validate parameters
       if (typeof videoId !== 'number') {
-        console.error(
-          '[useDownloadManager] Invalid videoId for retry:',
-          videoId,
-        );
         Alert.alert(i18n('error'), 'Invalid video ID provided', [
           { text: i18n('ok') },
         ]);
@@ -217,10 +184,6 @@ export const useDownloadManager = () => {
       }
 
       if (!videoData || typeof videoData !== 'object' || !videoData.name) {
-        console.error(
-          '[useDownloadManager] Invalid videoData for retry:',
-          videoData,
-        );
         Alert.alert(i18n('error'), 'Invalid video data provided', [
           { text: i18n('ok') },
         ]);
@@ -230,9 +193,6 @@ export const useDownloadManager = () => {
       // Check if another download is active
       const downloadManager = DownloadManager.getInstance();
       if (downloadManager.isDownloadActive()) {
-        console.warn(
-          `[useDownloadManager] Cannot retry video ${videoId} - another download is active`,
-        );
         Alert.alert(
           i18n('download_in_progress'),
           i18n('download_in_progress_message'),
@@ -241,26 +201,16 @@ export const useDownloadManager = () => {
         return false;
       }
 
-      console.log(
-        `[useDownloadManager] Retrying download for video ${videoId}: ${videoData.name}`,
-      );
-
       // Start retry
       const success = await downloadManager.retryDownload(videoData);
 
       if (!success) {
-        console.error(
-          `[useDownloadManager] Failed to retry download for video ${videoId}`,
-        );
         Alert.alert(i18n('error'), i18n('download_failed'), [
           { text: i18n('ok') },
         ]);
         return false;
       }
 
-      console.log(
-        `[useDownloadManager] Retry started successfully for video ${videoId}`,
-      );
       return true;
     } catch (error) {
       console.error('[useDownloadManager] Error retrying download:', error);
@@ -277,21 +227,15 @@ export const useDownloadManager = () => {
    */
   const cancelDownload = async () => {
     try {
-      console.log('[useDownloadManager] Cancelling current download');
-
       const downloadManager = DownloadManager.getInstance();
 
       if (!downloadManager.isDownloadActive()) {
-        console.log('[useDownloadManager] No active download to cancel');
         return true;
       }
 
       const success = await downloadManager.cancelCurrentDownload();
 
-      if (success) {
-        console.log('[useDownloadManager] Download cancelled successfully');
-      } else {
-        console.error('[useDownloadManager] Failed to cancel download');
+      if (!success) {
         Alert.alert(i18n('error'), 'Failed to cancel download', [
           { text: i18n('ok') },
         ]);
@@ -317,9 +261,6 @@ export const useDownloadManager = () => {
       const currentDownload = downloadManager.getCurrentDownload();
 
       if (currentDownload) {
-        console.log(
-          `[useDownloadManager] Current download: Video ${currentDownload.id}`,
-        );
         return {
           video: currentDownload,
           isActive: true,
@@ -350,7 +291,6 @@ export const useDownloadManager = () => {
     try {
       const downloadManager = DownloadManager.getInstance();
       const isActive = downloadManager.isDownloadActive();
-      console.log(`[useDownloadManager] Download active status: ${isActive}`);
       return isActive;
     } catch (error) {
       console.error(
@@ -369,7 +309,6 @@ export const useDownloadManager = () => {
     try {
       const downloadManager = DownloadManager.getInstance();
       const queueLength = downloadManager.getQueueLength();
-      console.log(`[useDownloadManager] Queue length: ${queueLength}`);
       return queueLength;
     } catch (error) {
       console.error('[useDownloadManager] Error getting queue length:', error);
