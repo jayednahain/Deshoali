@@ -15,14 +15,19 @@ import BottomButtonSectionWithText from './Button/BottomButtonSectionWithText';
 import CustomLoader from './Loader/CustomLoader';
 import DownloadingProcessModal from './Modal/DownloadingProcessModal';
 import ErrorModal, { setErrorModalRetryCallback } from './Modal/ErrorModal';
+import InternetErrorModal, {
+  setInternetErrorModalRetryCallback,
+} from './Modal/InternetErrorModal';
 
 export {
   BottomButtonSectionWithText,
   CustomLoader,
   DownloadingProcessModal,
   ErrorModal,
+  InternetErrorModal,
   OfflineHeader,
   setErrorModalRetryCallback,
+  setInternetErrorModalRetryCallback,
   VideoListRenderer,
   VideoPlayer,
   VideoSearchBar,

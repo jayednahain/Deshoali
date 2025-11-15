@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import CrashReportModal from './App/Components/Modal/CrashReportModal';
 import DownloadInProgressModal from './App/Components/Modal/DownloadInProgressModal';
 import ErrorModal from './App/Components/Modal/ErrorModal';
+import InternetErrorModal from './App/Components/Modal/InternetErrorModal';
 import StorageModal from './App/Components/Modal/StorageModal';
 import AppStore from './App/ReduxStore/store';
 import CrashReportService from './App/Service/CrashReportService';
@@ -72,6 +73,7 @@ export default function App() {
         <ErrorModal />
         <StorageModal />
         <DownloadInProgressModal />
+        <InternetErrorModal />
 
         {/* Crash Report Modal */}
         <CrashReportModal

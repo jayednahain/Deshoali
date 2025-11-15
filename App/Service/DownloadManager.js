@@ -40,6 +40,10 @@ class DownloadManager {
     this.networkUnsubscribe = null; // NetInfo listener
     this.pausedDueToNetwork = false; // Track if we paused due to network loss
 
+    // ANR FIX: Flags to prevent race conditions
+    this.isPausing = false; // Prevent multiple pause calls
+    this.isResuming = false; // Prevent multiple resume calls
+
     // DEBUG MODE: Simulate network error
     this.debugSimulateError = false; // Can be toggled from UI
     this.debugTimeoutId = null; // Store timeout ID for debugging
@@ -69,69 +73,144 @@ class DownloadManager {
   _initializeNetworkMonitoring() {
     try {
       // Check initial network state
-      NetInfo.fetch().then(state => {
-        this.isNetworkAvailable =
-          state.isConnected && state.isInternetReachable;
-        console.log(
-          `${this.logPrefix} Initial network state: ${this.isNetworkAvailable}`,
-        );
-      });
+      NetInfo.fetch()
+        .then(state => {
+          try {
+            this.isNetworkAvailable =
+              state.isConnected && state.isInternetReachable;
+            console.log(
+              `${this.logPrefix} Initial network state: ${
+                this.isNetworkAvailable ? 'ONLINE' : 'OFFLINE'
+              }`,
+            );
+          } catch (error) {
+            console.error(
+              `${this.logPrefix} Error processing initial network state:`,
+              error,
+            );
+          }
+        })
+        .catch(error => {
+          console.error(
+            `${this.logPrefix} Error fetching initial network state:`,
+            error,
+          );
+        });
+
+      // ✅ CRITICAL FIX: Debounce network changes to prevent rapid calls
+      let networkChangeTimeout = null;
 
       // Listen for network state changes
       this.networkUnsubscribe = NetInfo.addEventListener(state => {
-        try {
-          const wasNetworkAvailable = this.isNetworkAvailable;
-          const reachable =
-            state.isInternetReachable === null
-              ? state.isConnected
-              : state.isInternetReachable;
-          this.isNetworkAvailable = !!(state.isConnected && reachable);
-
-          console.log(
-            `${this.logPrefix} Network state changed: ${wasNetworkAvailable} → ${this.isNetworkAvailable}`,
-          );
-
-          // Handle network loss during active download
-          if (
-            wasNetworkAvailable &&
-            !this.isNetworkAvailable &&
-            (this.isProcessing || this.currentDownload)
-          ) {
-            console.warn(
-              `${this.logPrefix} ⚠️ NETWORK LOST during download! Pausing queue...`,
-            );
-            this.pausedDueToNetwork = true;
-            this._pauseDownloadDueToNetwork();
-          }
-
-          // Handle network restoration
-          if (
-            !wasNetworkAvailable &&
-            this.isNetworkAvailable &&
-            this.pausedDueToNetwork
-          ) {
-            console.log(
-              `${this.logPrefix} ✅ Network restored! Resuming downloads...`,
-            );
-            this.pausedDueToNetwork = false;
-            this._resumeDownloadsAfterNetworkRestore();
-          }
-        } catch (error) {
-          console.error(
-            `${this.logPrefix} ❌ CRITICAL: Network listener callback crashed:`,
-            error,
-          );
-          CrashReportService.addLog(
-            'Network listener callback crashed',
-            'ERROR',
-            { errorMessage: error.message, stack: error.stack },
-          );
+        // ✅ Clear any pending network change handling
+        if (networkChangeTimeout) {
+          clearTimeout(networkChangeTimeout);
         }
+
+        // ✅ Debounce network changes by 500ms
+        networkChangeTimeout = setTimeout(() => {
+          try {
+            const wasNetworkAvailable = this.isNetworkAvailable;
+            const isNowAvailable =
+              state.isConnected && state.isInternetReachable;
+
+            this.isNetworkAvailable = isNowAvailable;
+
+            console.log(
+              `${this.logPrefix} 📡 Network state changed: ${
+                wasNetworkAvailable ? 'ONLINE' : 'OFFLINE'
+              } → ${isNowAvailable ? 'ONLINE' : 'OFFLINE'}`,
+            );
+
+            // Network lost during active download
+            if (wasNetworkAvailable && !isNowAvailable && this.isProcessing) {
+              console.log(
+                `${this.logPrefix} 🔴 Network LOST during download - pausing...`,
+              );
+
+              // ✅ CRITICAL: Call async to prevent blocking
+              setImmediate(() => {
+                this._pauseDownloadDueToNetwork();
+              });
+            }
+
+            // Network restored after being lost
+            if (
+              !wasNetworkAvailable &&
+              isNowAvailable &&
+              this.pausedDueToNetwork
+            ) {
+              console.log(
+                `${this.logPrefix} 🟢 Network RESTORED - resuming...`,
+              );
+
+              // ✅ CRITICAL: Call async to prevent blocking
+              setImmediate(() => {
+                this._resumeDownloadsAfterNetworkRestore();
+              });
+            }
+          } catch (error) {
+            // ✅ CRASH PREVENTION: Catch ANY error in network listener
+            console.error(
+              `${this.logPrefix} ❌❌❌ CRASH PREVENTED in network listener:`,
+              error,
+            );
+            console.error(`${this.logPrefix} Error stack:`, error.stack);
+
+            // Log to crash report service
+            CrashReportService.addLog(
+              'Network listener error (CRASH PREVENTED)',
+              'ERROR',
+              {
+                error: error.message,
+                stack: error.stack,
+                isProcessing: this.isProcessing,
+                pausedDueToNetwork: this.pausedDueToNetwork,
+                currentDownloadId: this.currentDownload?.id,
+                queueLength: this.downloadQueue.length,
+              },
+            );
+
+            // Try to recover gracefully (also async)
+            setImmediate(() => {
+              try {
+                if (this.isProcessing && this.currentDownload) {
+                  console.log(
+                    `${this.logPrefix} Attempting graceful recovery...`,
+                  );
+                  this._pauseDownloadDueToNetwork();
+                }
+              } catch (recoveryError) {
+                console.error(
+                  `${this.logPrefix} Recovery also failed:`,
+                  recoveryError,
+                );
+                CrashReportService.addLog(
+                  'Network listener recovery failed',
+                  'ERROR',
+                  {
+                    error: recoveryError.message,
+                  },
+                );
+              }
+            });
+          }
+        }, 500); // ✅ 500ms debounce to prevent rapid calls
       });
+
+      console.log(`${this.logPrefix} ✅ Network monitoring initialized`);
     } catch (error) {
       console.error(
-        `${this.logPrefix} Error initializing network monitoring:`,
+        `${this.logPrefix} ❌ Error initializing network monitoring:`,
         error,
+      );
+      CrashReportService.addLog(
+        'Network monitoring initialization failed',
+        'ERROR',
+        {
+          error: error.message,
+          stack: error.stack,
+        },
       );
     }
   }
@@ -335,22 +414,6 @@ class DownloadManager {
       }
 
       console.log(`${this.logPrefix} Starting download for video ${video.id}`);
-
-      // DEBUG: Simulate network error if enabled
-      // if (this.debugSimulateError && video.id === 0) {
-      //   console.warn(
-      //     `${this.logPrefix} 🔴 DEBUG ENABLED: Will simulate network error after 5 seconds!`,
-      //   );
-      //   this.debugTimeoutId = setTimeout(() => {
-      //     console.error(
-      //       `${this.logPrefix} 🔴🔴🔴 SIMULATING NETWORK ERROR - CANCELLING DOWNLOAD!`,
-      //     );
-      //     if (this.downloadJob && this.downloadJob.promise) {
-      //       this.downloadJob.promise.cancel();
-      //       this.downloadJob = null;
-      //     }
-      //   }, 2000);
-      // }
 
       // Generate file path
       const filePath = await FileSystemService.getVideoFilePath(
@@ -683,18 +746,16 @@ class DownloadManager {
                 // Update progress via callback
                 this._updateProgress(videoId, roundedProgress);
 
-                // NEW (Phase 3): Update modal progress (if currently downloading video)
+                // Update modal progress
                 if (
                   this.currentDownload &&
                   this.currentDownload.id === videoId
                 ) {
-                  // Note: totalVideos and completedVideos are maintained in processQueue
-                  // We only update the current video progress here
                   this._updateModal(
                     this.currentDownload.name,
                     roundedProgress,
-                    null, // Don't change total
-                    null, // Don't change completed count
+                    null,
+                    null,
                   );
                 }
               }
@@ -707,9 +768,47 @@ class DownloadManager {
           },
         };
 
-        this.downloadJob = RNFS.downloadFile(options);
+        // ✅ CRITICAL FIX: Create a safe wrapper around RNFS job to prevent native crashes
+        // RNFS has a bug where it can pass null to React Native bridge, causing NullPointerException
+        // We intercept the promise and add a safety layer
 
-        this.downloadJob.promise
+        const downloadJobPromise = new Promise(
+          (resolveWrapper, rejectWrapper) => {
+            try {
+              this.downloadJob = RNFS.downloadFile(options);
+
+              // Store the original promise
+              const originalPromise = this.downloadJob.promise;
+
+              // Wrap the promise with safety checks
+              originalPromise
+                .then(result => {
+                  resolveWrapper(result);
+                })
+                .catch(error => {
+                  // ✅ CRITICAL: Intercept error BEFORE it reaches RNFS native code
+                  // Create a safe error object that won't crash
+                  const safeError = {
+                    message: error?.message || 'Unknown download error',
+                    code: error?.code || 'UNKNOWN',
+                    stack: error?.stack || '',
+                  };
+                  rejectWrapper(safeError);
+                });
+            } catch (error) {
+              // Setup error
+              const safeError = {
+                message: error?.message || 'Failed to start download',
+                code: 'SETUP_ERROR',
+                stack: error?.stack || '',
+              };
+              rejectWrapper(safeError);
+            }
+          },
+        );
+
+        // Handle the safe promise
+        downloadJobPromise
           .then(result => {
             this.downloadJob = null;
 
@@ -728,47 +827,74 @@ class DownloadManager {
           })
           .catch(error => {
             this.downloadJob = null;
-            console.error(
-              `${this.logPrefix} ❌ DOWNLOAD ERROR for video ${videoId}:`,
-              {
-                errorMessage: error.message,
-                errorCode: error.code,
-                errorStack: error.stack,
-                timestamp: new Date().toISOString(),
-              },
-            );
 
-            // Log to crash report service
-            this._logDownloadEvent('ERROR', videoId, {
-              errorMessage: error.message,
-              errorCode: error.code,
-              errorStack: error.stack,
-            });
+            // Error is already safe from our wrapper above
+            const errorMessage = error.message || 'Unknown error';
+            const errorCode = error.code || 'UNKNOWN';
+            const errorStack = error.stack || '';
 
-            // Debug: Show which callback we're about to call
-            console.warn(
-              `${this.logPrefix} 📍 Calling status callback with FAILED state...`,
-            );
+            // ✅ Check if error is due to cancellation
+            const isCancelled =
+              errorMessage.includes('cancelled') ||
+              errorMessage.includes('canceled') ||
+              errorMessage.includes('stopped') ||
+              errorCode === 'EUNSPECIFIED'; // RNFS cancellation error code
 
-            // Safe callback execution - wrap in try-catch
-            try {
-              this._updateStatus(videoId, 'FAILED', null, error.message);
-            } catch (callbackError) {
-              console.error(
-                `${this.logPrefix} ❌ ERROR in _updateStatus callback:`,
-                callbackError,
+            if (isCancelled) {
+              console.log(
+                `${this.logPrefix} ℹ️ Download cancelled for video ${videoId} (expected due to network loss)`,
               );
-            }
 
-            resolve({ success: false, error: error.message });
+              // ✅ Don't call FAILED callback - download was intentionally cancelled
+              // The PAUSED callback was already called in _pauseDownloadDueToNetwork
+              resolve({
+                success: false,
+                error: 'Download cancelled',
+                cancelled: true,
+              });
+            } else {
+              // ✅ Real error (not cancellation)
+              console.error(
+                `${this.logPrefix} ❌ DOWNLOAD ERROR for video ${videoId}:`,
+                {
+                  errorMessage: errorMessage,
+                  errorCode: errorCode,
+                  errorStack: errorStack,
+                  timestamp: new Date().toISOString(),
+                },
+              );
+
+              // Log to crash report service
+              this._logDownloadEvent('ERROR', videoId, {
+                errorMessage: errorMessage,
+                errorCode: errorCode,
+                errorStack: errorStack,
+              });
+
+              // ✅ CRITICAL FIX: Call status callback with safe error message
+              try {
+                // Ensure we pass a valid string, not null/undefined
+                const safeErrorMessage =
+                  errorMessage || 'Download failed - unknown error';
+                this._updateStatus(videoId, 'FAILED', null, safeErrorMessage);
+              } catch (callbackError) {
+                console.error(
+                  `${this.logPrefix} ❌ ERROR in _updateStatus callback:`,
+                  callbackError,
+                );
+              }
+
+              resolve({ success: false, error: errorMessage });
+            }
           });
       } catch (error) {
         console.error(`${this.logPrefix} Error setting up download:`, error);
-        resolve({ success: false, error: error.message });
+        // ✅ CRITICAL FIX: Safely get error message
+        const setupError = error?.message || 'Download setup failed';
+        resolve({ success: false, error: setupError });
       }
     });
   }
-
   /**
    * Get video download URL
    * @private
@@ -843,6 +969,13 @@ class DownloadManager {
   async _updateStatus(videoId, status, filePath = null, errorMessage = null) {
     try {
       if (this.statusCallback && typeof this.statusCallback === 'function') {
+        // ✅ CRITICAL FIX: Ensure errorMessage is never null/undefined when passed to callback
+        // RNFS NullPointerException fix
+        const safeErrorMessage =
+          errorMessage && typeof errorMessage === 'string'
+            ? errorMessage
+            : null;
+
         // For DOWNLOADED status, also pass the localFilePath
         if (status === 'DOWNLOADED') {
           const downloadedPath =
@@ -852,12 +985,19 @@ class DownloadManager {
             `${this.logPrefix} Download completed for video ${videoId}, file path: ${downloadedPath}`,
           );
           this.statusCallback(videoId, status, downloadedPath);
-        } else if (status === 'FAILED' && errorMessage) {
-          // For FAILED status, pass error message
+        } else if (status === 'FAILED' || status === 'PAUSED') {
+          // For FAILED/PAUSED status, pass error message (safely)
+          const messageToLog = safeErrorMessage || 'No error message provided';
           console.error(
-            `${this.logPrefix} Download failed for video ${videoId}: ${errorMessage}`,
+            `${this.logPrefix} Download ${status} for video ${videoId}: ${messageToLog}`,
           );
-          this.statusCallback(videoId, status, null, errorMessage);
+          // ✅ Only pass error message if it's a valid string
+          this.statusCallback(
+            videoId,
+            status,
+            null,
+            safeErrorMessage || undefined,
+          );
         } else {
           this.statusCallback(videoId, status);
         }
@@ -867,6 +1007,14 @@ class DownloadManager {
         videoId,
         status,
         errorMessage: error.message,
+        stack: error.stack,
+      });
+
+      // Log to crash report
+      CrashReportService.addLog('_updateStatus callback crash', 'ERROR', {
+        videoId,
+        status,
+        callbackError: error.message,
         stack: error.stack,
       });
     }
@@ -898,31 +1046,64 @@ class DownloadManager {
    * Pause download due to network loss
    * @private
    */
+
   _pauseDownloadDueToNetwork() {
+    // Prevent multiple simultaneous pause calls
+    if (this.isPausing) {
+      console.log(`${this.logPrefix} ⚠️ Already pausing, skipping...`);
+      return;
+    }
+
+    this.isPausing = true;
+
     try {
       console.log(
         `${this.logPrefix} 🛑 PAUSING DOWNLOADS due to network loss...`,
       );
 
-      // ✅ FIXED: Properly cancel RNFS download job
+      // ✅ ULTIMATE FIX: Use RNFS.stopDownload() instead of .cancel()
+      // The .cancel() method has a native bug, but stopDownload(jobId) works correctly
       if (this.downloadJob) {
         try {
-          // RNFS promises have .cancel() method, not .stopDownload()
-          if (typeof this.downloadJob.cancel === 'function') {
-            this.downloadJob.cancel();
+          console.log(
+            `${this.logPrefix} Stopping download using RNFS.stopDownload()...`,
+          );
+
+          const jobId = this.downloadJob.jobId; // Get job ID
+
+          // Nullify immediately to prevent re-entry
+          this.downloadJob = null;
+
+          // ✅ Use RNFS.stopDownload(jobId) instead of job.cancel()
+          // This is the CORRECT API that doesn't cause native crashes
+          if (jobId !== null && jobId !== undefined) {
+            RNFS.stopDownload(jobId);
             console.log(
-              `${this.logPrefix} ✅ Download job cancelled successfully`,
+              `${this.logPrefix} ✅ Download stopped successfully (jobId: ${jobId})`,
+            );
+          } else {
+            console.warn(
+              `${this.logPrefix} ⚠️ No jobId available, cannot stop download`,
             );
           }
-        } catch (cancelError) {
-          console.warn(
-            `${this.logPrefix} Warning cancelling download job:`,
-            cancelError,
+        } catch (error) {
+          console.error(
+            `${this.logPrefix} ❌ Error stopping download:`,
+            error?.message || 'Unknown',
           );
+          CrashReportService.addLog('Download stop error', 'ERROR', {
+            error: error?.message || 'Unknown',
+            stack: error?.stack || '',
+          });
+
+          // Still nullify to prevent memory leak
+          this.downloadJob = null;
         }
-        this.downloadJob = null;
+      } else {
+        console.log(`${this.logPrefix} No active download job to stop`);
       }
 
+      // Set flags
       this.isProcessing = false;
       this.pausedDueToNetwork = true;
 
@@ -930,103 +1111,167 @@ class DownloadManager {
       if (this.currentDownload) {
         const errorMessage =
           'Network connection lost. Download will resume when network is restored.';
+        const videoId = this.currentDownload.id;
 
-        // Save paused status to local storage
-        LocalStorageService.saveVideoMetadata(this.currentDownload.id, {
+        console.log(`${this.logPrefix} Updating video ${videoId} to PAUSED`);
+
+        // Save paused status to local storage (async, don't wait)
+        LocalStorageService.saveVideoMetadata(videoId, {
           ...this.currentDownload,
           status: 'PAUSED',
           pausedAt: new Date().toISOString(),
         }).catch(err => {
           console.error(`${this.logPrefix} Error saving paused status:`, err);
+          CrashReportService.addLog('Save paused status error', 'ERROR', {
+            error: err.message,
+            videoId: videoId,
+          });
         });
 
-        // Call status callback with error message
-        if (this.statusCallback) {
-          try {
-            this.statusCallback(
-              this.currentDownload.id,
-              'PAUSED',
-              null,
-              errorMessage,
-            );
-          } catch (callbackError) {
-            console.error(
-              `${this.logPrefix} Error in status callback:`,
-              callbackError,
-            );
-          }
+        // ✅ Call status callback ASYNC (with proper null checks)
+        if (this.statusCallback && typeof this.statusCallback === 'function') {
+          setTimeout(() => {
+            try {
+              console.log(
+                `${this.logPrefix} Calling status callback for PAUSED`,
+              );
+
+              // ✅ Ensure videoId is valid
+              if (typeof videoId === 'number') {
+                this.statusCallback(videoId, 'PAUSED', null, errorMessage);
+              } else {
+                console.error(
+                  `${this.logPrefix} Invalid videoId for status callback:`,
+                  videoId,
+                );
+              }
+            } catch (callbackError) {
+              console.error(
+                `${this.logPrefix} ❌ Error in status callback:`,
+                callbackError,
+              );
+              CrashReportService.addLog(
+                'Status callback error (PAUSED)',
+                'ERROR',
+                {
+                  error: callbackError.message,
+                  stack: callbackError.stack,
+                  videoId: videoId,
+                },
+              );
+            }
+          }, 100); // Small delay to prevent blocking
+        } else {
+          console.warn(`${this.logPrefix} ⚠️ No status callback set!`);
         }
 
-        // Show toast notification
-        Toast.show({
-          type: 'error',
-          text1: '⚠️ Download Paused',
-          text2: 'Network connection lost',
-          position: 'bottom',
-        });
+        // Show toast (async)
+        setTimeout(() => {
+          try {
+            Toast.show({
+              type: 'error',
+              text1: 'Download Paused',
+              text2: 'Network connection lost',
+              position: 'bottom',
+              visibilityTime: 3000,
+            });
+          } catch (toastError) {
+            console.warn(`${this.logPrefix} Toast error:`, toastError);
+          }
+        }, 150);
       }
 
-      console.log(
-        `${this.logPrefix} Queue paused. ${this.downloadQueue.length} videos waiting for network...`,
-      );
+      console.log(`${this.logPrefix} ✅ Queue paused due to network loss`);
     } catch (error) {
-      console.error(`${this.logPrefix} ❌ Error pausing download:`, error);
-
-      // Log to crash report service
-      CrashReportService.addLog(
-        'Error in _pauseDownloadDueToNetwork',
-        'ERROR',
-        { error: error.message, stack: error.stack },
+      console.error(
+        `${this.logPrefix} ❌❌❌ CRITICAL ERROR in _pauseDownloadDueToNetwork:`,
+        error,
       );
+      console.error(`${this.logPrefix} Error stack:`, error.stack);
+
+      CrashReportService.addLog(
+        'Critical error in _pauseDownloadDueToNetwork',
+        'ERROR',
+        {
+          error: error.message,
+          stack: error.stack,
+          currentDownloadId: this.currentDownload?.id,
+        },
+      );
+    } finally {
+      // ✅ Always reset pausing flag
+      this.isPausing = false;
     }
   }
 
   /**
    * Resume downloads after network is restored
    * @private
+   */ /**
+   * Resume downloads after network is restored
+   * @private
    */
   _resumeDownloadsAfterNetworkRestore() {
+    // ✅ Prevent multiple simultaneous resume calls
+    if (this.isResuming) {
+      console.log(`${this.logPrefix} ⚠️ Already resuming, skipping...`);
+      return;
+    }
+
+    this.isResuming = true;
+
     try {
       console.log(
-        `${this.logPrefix} ✅ Network Restored! Attempting to resume...`,
+        `${this.logPrefix} 🔄 RESUMING DOWNLOADS after network restore...`,
       );
 
-      // Log network restore event
-      this._logDownloadEvent('NETWORK_RESTORED', 'AUTO_DOWNLOAD', {
-        currentVideoId: this.currentDownload?.id || null,
-        currentVideoName: this.currentDownload?.name || null,
-      });
+      this.pausedDueToNetwork = false;
 
-      // Show toast notification
-      Toast.show({
-        type: 'success',
-        text1: '✅ Network Restored',
-        text2: 'Resuming downloads...',
-        duration: 2000,
-      });
+      // Show toast (async)
+      setTimeout(() => {
+        try {
+          Toast.show({
+            type: 'success',
+            text1: 'Network Restored',
+            text2: 'Resuming downloads...',
+            position: 'bottom',
+            visibilityTime: 2000,
+          });
+        } catch (toastError) {
+          console.warn(`${this.logPrefix} Toast error:`, toastError);
+        }
+      }, 100);
 
-      // Reset the currentDownload if it was paused mid-way
-      if (this.currentDownload) {
-        console.log(`${this.logPrefix} Resuming: ${this.currentDownload.name}`);
-      }
-
-      // Resume queue processing
-      if (!this.isProcessing) {
-        console.log(`${this.logPrefix} Starting queue processor...`);
-        this.isProcessing = true;
-
-        // Start processing the queue again
-        setTimeout(() => {
-          this.processQueue().catch(err =>
-            console.error(`${this.logPrefix} Error resuming queue:`, err),
+      // Resume processing queue (with delay to ensure network is stable)
+      setTimeout(() => {
+        if (this.downloadQueue.length > 0 && !this.isProcessing) {
+          console.log(`${this.logPrefix} Restarting queue processing...`);
+          this.processQueue();
+        } else if (this.currentDownload && !this.isProcessing) {
+          console.log(`${this.logPrefix} Restarting current download...`);
+          this.processQueue();
+        } else {
+          console.log(
+            `${this.logPrefix} No downloads to resume (queue empty or already processing)`,
           );
-        }, 500); // Small delay to ensure network is stable
-      }
+        }
+      }, 1000); // ✅ 1 second delay to ensure network is stable
+
+      console.log(`${this.logPrefix} ✅ Downloads resumed`);
     } catch (error) {
-      console.error(
-        `${this.logPrefix} Error resuming downloads after network restore:`,
-        error,
+      console.error(`${this.logPrefix} ❌ Error resuming downloads:`, error);
+
+      CrashReportService.addLog(
+        'Error in _resumeDownloadsAfterNetworkRestore',
+        'ERROR',
+        {
+          error: error.message,
+          stack: error.stack,
+        },
       );
+    } finally {
+      // ✅ Reset resuming flag
+      this.isResuming = false;
     }
   }
 

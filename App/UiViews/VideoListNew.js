@@ -439,25 +439,31 @@ export default function VideoListNew() {
       return;
     }
 
+    console.log('[VideoListNew] 🔧 Initializing download manager callbacks...');
+
     const downloadManager = DownloadManager.getInstance();
 
     // Modal callback - real-time progress updates
     downloadManager.setModalCallback(
       (videoName, progress, totalVideos, completedVideos) => {
-        const update = {};
-        if (videoName !== null && videoName !== undefined) {
-          update.currentVideoName = videoName;
+        try {
+          const update = {};
+          if (videoName !== null && videoName !== undefined) {
+            update.currentVideoName = videoName;
+          }
+          if (progress !== null && progress !== undefined) {
+            update.currentVideoProgress = progress;
+          }
+          if (totalVideos !== null && totalVideos !== undefined) {
+            update.totalVideos = totalVideos;
+          }
+          if (completedVideos !== null && completedVideos !== undefined) {
+            update.completedVideos = completedVideos;
+          }
+          dispatch(updateDownloadingProcessModal(update));
+        } catch (error) {
+          console.error('[VideoListNew] Error in modal callback:', error);
         }
-        if (progress !== null && progress !== undefined) {
-          update.currentVideoProgress = progress;
-        }
-        if (totalVideos !== null && totalVideos !== undefined) {
-          update.totalVideos = totalVideos;
-        }
-        if (completedVideos !== null && completedVideos !== undefined) {
-          update.completedVideos = completedVideos;
-        }
-        dispatch(updateDownloadingProcessModal(update));
       },
     );
 
@@ -465,8 +471,13 @@ export default function VideoListNew() {
     downloadManager.setStatusCallback(
       (videoId, status, localFilePath, callbackErrorMessage) => {
         try {
+          console.log(
+            `[VideoListNew] 📡 Status callback: Video ${videoId} -> ${status}`,
+          );
+
           dispatch(updateVideoStatus({ videoId, status }));
 
+          // ✅ DOWNLOADED: Increment counter and check completion
           if (status === 'DOWNLOADED') {
             dispatch(incrementVideosDownloaded());
 
@@ -474,25 +485,26 @@ export default function VideoListNew() {
             setTimeout(() => {
               checkAndHideModalIfComplete();
             }, 500);
-          } else if (status === 'PAUSED') {
-            // Network loss - don't show error modal, just keep modal visible
-            // Download will auto-resume when network returns
+          }
+
+          // ✅ PAUSED: Network loss - Show internet error modal
+          else if (status === 'PAUSED') {
             console.warn(
-              `[VideoListNew] Download paused for video ${videoId}: ${callbackErrorMessage}`,
+              `[VideoListNew] ⚠️ Download PAUSED for video ${videoId}: ${callbackErrorMessage}`,
             );
 
             // Keep modal visible, don't hide it
             // The toast notification will be shown from DownloadManager
           } else if (status === 'FAILED') {
             console.error(
-              `[VideoListNew] Download failed: ${videoId} - ${callbackErrorMessage}`,
+              `[VideoListNew] ❌ Download FAILED: ${videoId} - ${callbackErrorMessage}`,
             );
 
-            // Hide modal
+            // Hide downloading modal
             dispatch(hideDownloadingProcessModal());
             dispatch(setDownloadingInModal(false));
 
-            // Show error modal with error message
+            // Show error modal with retry option
             dispatch(
               showErrorModal({
                 title: 'ডাউনলোড ব্যর্থ',
@@ -511,14 +523,14 @@ export default function VideoListNew() {
             );
           }
 
-          // Update current download
+          // Update current download tracking
           if (status === 'DOWNLOADING') {
             dispatch(setCurrentDownload(videoId));
           } else if (status === 'DOWNLOADED' || status === 'FAILED') {
             dispatch(setCurrentDownload(null));
           }
         } catch (error) {
-          console.error('[VideoListNew] Error in status callback:', error);
+          console.error('[VideoListNew] ❌ Error in status callback:', error);
         }
       },
     );
@@ -643,6 +655,51 @@ export default function VideoListNew() {
       );
     }
   }, [isError, errorMessage, localVideos, dispatch]);
+
+  // ====================
+  // useEffect 11: Monitor network status during download - Show internet error modal
+  // ====================
+  useEffect(() => {
+    // Only act if we're currently downloading (modal is visible)
+    // if (!isOnline && downloadingProcessModal?.visible) {
+    //   console.log(
+    //     '[VideoListNew] 🔴 Network lost during download - showing internet error modal',
+    //   );
+
+    //   // Hide download progress modal immediately
+    //   dispatch(hideDownloadingProcessModal());
+    //   dispatch(setDownloadingInModal(false));
+
+    //   // Show internet error modal after 0.5 second delay
+    //   const timer = setTimeout(() => {
+    //     dispatch(showInternetErrorModal());
+
+    //     // Set retry callback
+    //     setInternetErrorModalRetryCallback(() => {
+    //       console.log('[VideoListNew] Internet error modal retry clicked');
+
+    //       // Check if online before retrying
+    //       if (isOnline) {
+    //         dispatch(setDownloadingInModal(true));
+    //         dispatch(showDownloadingProcessModal());
+
+    //         // Trigger download restart
+    //         setTimeout(() => {
+    //           dispatch(startAutoDownloadThunk());
+    //         }, 500);
+    //       } else {
+    //         console.log('[VideoListNew] Still offline, cannot retry');
+    //       }
+    //     });
+    //   }, 500);
+
+    //   return () => clearTimeout(timer);
+    // }
+
+    if (!isOnline) {
+      dispatch(hideDownloadingProcessModal());
+    }
+  }, [isOnline, dispatch]);
 
   // ====================
   // HANDLERS

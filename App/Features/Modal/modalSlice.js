@@ -32,6 +32,11 @@ const initialState = {
     progress: 0,
   },
 
+  // NEW: Internet Error Modal States (Network disconnected during download)
+  internetErrorModal: {
+    visible: false,
+  },
+
   // NEW: Downloading Process Modal States (Phase 2)
   downloadingProcessModal: {
     visible: false,
@@ -151,6 +156,30 @@ const modalSlice = createSlice({
       console.log('[ModalSlice] Hiding download progress modal');
     },
 
+    // Internet Error Modal Actions (Network disconnected during download)
+    showInternetErrorModal: state => {
+      state.internetErrorModal = {
+        visible: true,
+      };
+      state.isAnyModalVisible = true;
+
+      console.log('[ModalSlice] Showing internet error modal');
+    },
+
+    hideInternetErrorModal: state => {
+      state.internetErrorModal = {
+        ...initialState.internetErrorModal,
+        visible: false,
+      };
+      state.isAnyModalVisible =
+        state.errorModal.visible ||
+        state.storageModal.visible ||
+        state.downloadInProgressModal.visible ||
+        state.downloadingProcessModal.visible;
+
+      console.log('[ModalSlice] Hiding internet error modal');
+    },
+
     updateDownloadInProgressModal: (state, action) => {
       const { currentVideoName, progress } = action.payload;
 
@@ -252,6 +281,7 @@ const modalSlice = createSlice({
       state.errorModal.visible = false;
       state.storageModal.visible = false;
       state.downloadInProgressModal.visible = false;
+      state.internetErrorModal.visible = false;
       state.downloadingProcessModal.visible = false;
       state.isAnyModalVisible = false;
 
@@ -274,8 +304,12 @@ export const {
   showDownloadInProgressModal,
   hideDownloadInProgressModal,
   updateDownloadInProgressModal,
+  showInternetErrorModal,
+  hideInternetErrorModal,
+
   showDownloadingProcessModal,
   hideDownloadingProcessModal,
+
   updateDownloadingProcessModal,
   hideAllModals,
   resetModalState,
@@ -289,6 +323,8 @@ export const selectStorageModal = state =>
 export const selectDownloadInProgressModal = state =>
   state.modalStore?.downloadInProgressModal ||
   initialState.downloadInProgressModal;
+export const selectInternetErrorModal = state =>
+  state.modalStore?.internetErrorModal || initialState.internetErrorModal;
 export const selectDownloadingProcessModal = state =>
   state.modalStore?.downloadingProcessModal ||
   initialState.downloadingProcessModal;
