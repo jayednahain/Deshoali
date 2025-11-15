@@ -47,7 +47,7 @@ export const useDownloadManager = () => {
 
     // Set status callback - updates Redux state for status changes
     downloadManager.setStatusCallback(
-      (videoId, status, filePath, errorMessage) => {
+      (videoId, status, filePath = null, errorMessage = null) => {
         try {
           if (typeof videoId === 'number' && typeof status === 'string') {
             // Update video status in Redux

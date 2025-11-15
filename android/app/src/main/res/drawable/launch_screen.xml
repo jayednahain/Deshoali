@@ -4,7 +4,7 @@
     <item android:drawable="@color/splash_background" />
 
     <item
-        android:drawable="@drawable/deshoali_logo"
+        android:drawable="@drawable/deshoali_png_flash_screen"
         android:gravity="center"
         />
 </layer-list>

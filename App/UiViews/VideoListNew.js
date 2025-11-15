@@ -43,16 +43,6 @@ import DownloadManager from '../Service/DownloadManager';
 import FileSystemService from '../Service/FileSystemService';
 import * as VideoComparison from '../Utils/VideoComparison';
 
-/**
- * VideoListNew - Modal-Centric Download Implementation
- *
- * REFACTORED VERSION:
- * - Fixed all dependency arrays
- * - Consolidated completion check logic
- * - Using useRef for tracking instead of state
- * - Using useSelector consistently
- * - Removed race conditions
- */
 export default function VideoListNew() {
   const dispatch = useDispatch();
   const { isOnline } = useNetworkStatus();
@@ -273,8 +263,6 @@ export default function VideoListNew() {
       ) {
         try {
           isProcessingRef.current = true;
-          console.log('[VideoListNew] ONLINE MODE - Merging videos...');
-
           const mergedVideos = await VideoComparison.mergeVideosWithLocalStatus(
             videos,
             localVideos,
@@ -288,9 +276,6 @@ export default function VideoListNew() {
             dispatch(setVideosWithStatus(mergedVideos));
             lastMergeKeyRef.current = currentMergeKey;
             setShowLoader(false);
-            console.log(
-              `[VideoListNew] ONLINE: Merged ${mergedVideos.length} videos`,
-            );
           } else {
             setShowLoader(false);
           }
@@ -319,9 +304,6 @@ export default function VideoListNew() {
       const failedVids = videosWithStatus.filter(v => v.status === 'FAILED');
 
       if (failedVids.length > 0) {
-        console.log(
-          `[VideoListNew] 🔍 Found ${failedVids.length} FAILED videos on load/merge`,
-        );
         setPendingVideosCount(failedVids.length);
         setShowBottomWarning(true);
       } else {

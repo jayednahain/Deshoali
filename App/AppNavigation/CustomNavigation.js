@@ -14,7 +14,7 @@ const AppNavigation = () => {
     return {
       headerShadowVisible: false,
       headerTitleAlign: 'center',
-      title: 'XXXXXX',
+      title: i18n('video_list_title'),
 
       headerStyle: {
         backgroundColor: '#4D870E',

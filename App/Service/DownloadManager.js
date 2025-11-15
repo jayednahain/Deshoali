@@ -81,8 +81,11 @@ class DownloadManager {
       this.networkUnsubscribe = NetInfo.addEventListener(state => {
         try {
           const wasNetworkAvailable = this.isNetworkAvailable;
-          this.isNetworkAvailable =
-            state.isConnected && state.isInternetReachable;
+          const reachable =
+            state.isInternetReachable === null
+              ? state.isConnected
+              : state.isInternetReachable;
+          this.isNetworkAvailable = !!(state.isConnected && reachable);
 
           console.log(
             `${this.logPrefix} Network state changed: ${wasNetworkAvailable} → ${this.isNetworkAvailable}`,
@@ -583,7 +586,7 @@ class DownloadManager {
 
       if (this.downloadJob) {
         // Cancel RNFS download job
-        this.downloadJob.promise.cancel();
+        this.downloadJob.cancel();
         this.downloadJob = null;
         console.log(`${this.logPrefix} RNFS download job cancelled`);
       }
@@ -749,7 +752,7 @@ class DownloadManager {
 
             // Safe callback execution - wrap in try-catch
             try {
-              this._updateStatus(videoId, 'FAILED', 0, error.message);
+              this._updateStatus(videoId, 'FAILED', null, error.message);
             } catch (callbackError) {
               console.error(
                 `${this.logPrefix} ❌ ERROR in _updateStatus callback:`,
@@ -854,7 +857,7 @@ class DownloadManager {
           console.error(
             `${this.logPrefix} Download failed for video ${videoId}: ${errorMessage}`,
           );
-          this.statusCallback(videoId, status, errorMessage);
+          this.statusCallback(videoId, status, null, errorMessage);
         } else {
           this.statusCallback(videoId, status);
         }
