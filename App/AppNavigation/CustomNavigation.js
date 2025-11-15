@@ -17,13 +17,22 @@ const AppNavigation = () => {
       title: i18n('video_list_title'),
 
       headerStyle: {
-        backgroundColor: '#4D870E',
+        // Vibrant header for a modern, colorful feel
+        backgroundColor: '#6D28D9', // Indigo/Violet
+        // Add a bit of height for presence
+        // height: 60,
         // borderRadius: 10,
       },
+      headerTintColor: '#FFFFFF',
       headerTitleStyle: {
         fontWeight: 'bold',
-        fontSize: 20,
+        fontSize: 21,
         color: '#FFFFFF',
+        letterSpacing: 0.5,
+        // Subtle text shadow for pop (mostly iOS)
+        textShadowColor: 'rgba(0,0,0,0.25)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 2,
       },
     };
   };

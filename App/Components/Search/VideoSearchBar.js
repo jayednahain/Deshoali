@@ -16,6 +16,7 @@ export default function VideoSearchBar({
   placeholder = 'Search videos...',
 }) {
   const [searchText, setSearchText] = useState('');
+  const [isFocused, setIsFocused] = useState(false);
   const { i18n } = useAppLanguage();
 
   const handleSearch = useCallback(() => {
@@ -42,16 +43,23 @@ export default function VideoSearchBar({
 
   return (
     <View style={styles.container}>
-      <View style={styles.searchContainer}>
+      <View
+        style={[
+          styles.searchContainer,
+          isFocused && styles.searchContainerFocused,
+        ]}
+      >
         <TextInput
           style={styles.searchInput}
           value={searchText}
           onChangeText={handleChangeText}
           placeholder={placeholder}
-          placeholderTextColor={ThemeColors.colorGray}
+          placeholderTextColor={ThemeColors.colorGray || '#94A3B8'}
           editable={!isSearching}
           returnKeyType="search"
           onSubmitEditing={handleSearch}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
         />
 
         <View style={styles.buttonContainer}>
@@ -88,56 +96,74 @@ export default function VideoSearchBar({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: ThemeColors.colorWhite,
+    backgroundColor: 'transparent',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: ThemeColors.colorLightGray || '#E0E0E0',
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 28,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  searchContainerFocused: {
+    borderColor: '#FF3B7F',
+    shadowColor: '#FF3B7F',
+    shadowOpacity: 0.2,
   },
   searchInput: {
     flex: 1,
     height: 44,
-    borderWidth: 1,
-    borderColor: ThemeColors.colorGray || '#CCCCCC',
-    borderRadius: 8,
-    paddingHorizontal: 12,
+    borderWidth: 0,
+    paddingHorizontal: 8,
     fontSize: 16,
     color: ThemeColors.colorBlack,
-    backgroundColor: ThemeColors.colorWhite,
+    backgroundColor: 'transparent',
   },
   buttonContainer: {
     flexDirection: 'row',
     gap: 8,
   },
   clearButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: ThemeColors.colorGray || '#CCCCCC',
-    backgroundColor: ThemeColors.colorWhite,
+    borderColor: '#FF3B7F55',
+    backgroundColor: '#FFFFFF',
+    elevation: 1,
   },
   clearButtonText: {
-    color: ThemeColors.colorGray,
+    color: '#FF3B7F',
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   searchButton: {
     paddingHorizontal: 20,
     paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: ThemeColors.colorPrimary || '#007AFF',
+    borderRadius: 22,
+    backgroundColor: '#FF3B7F', // Vibrant pink/coral
     minWidth: 80,
     alignItems: 'center',
     justifyContent: 'center',
+    elevation: 3,
+    shadowColor: '#FF3B7F',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
   },
   searchButtonDisabled: {
-    backgroundColor: ThemeColors.colorGray || '#CCCCCC',
+    backgroundColor: '#94A3B8',
   },
   searchButtonText: {
     color: ThemeColors.colorWhite,
