@@ -14,7 +14,7 @@ import { UtilityFunctions } from '../../UtilityFunctions/UtilityFunctions';
 import ButtonSquare from '../Button/ButtonSquare';
 import { Chip, ChipWarning } from '../Chip/Chip';
 
-export default function CardVideoListItem({ cardItem }) {
+export default function CardVideoListItem({ cardItem, index = 0 }) {
   const navigation = useNavigation();
   const { i18n } = useAppLanguage();
 
@@ -144,12 +144,17 @@ export default function CardVideoListItem({ cardItem }) {
   };
 
   const renderMainContent = () => {
+    const palette = ['#FDE68A', '#BFDBFE', '#C7F9CC', '#E9D5FF', '#FECACA', '#BAE6FD'];
+    const accentPalette = ['#F59E0B', '#3B82F6', '#10B981', '#8B5CF6', '#EF4444', '#0EA5E9'];
+    const bgColor = palette[index % palette.length];
+    const accentColor = accentPalette[index % accentPalette.length];
     return (
       <TouchableOpacity
         style={[
           styles.cardContainer,
           status === 'FAILED' && styles.failedCardContainer,
           isCurrentlyDownloading && styles.downloadingCardContainer,
+          { backgroundColor: bgColor },
           !collapsed && {
             borderColor: ThemeColors.colorPrimary,
             borderWidth: 2,
@@ -160,6 +165,7 @@ export default function CardVideoListItem({ cardItem }) {
         }}
         activeOpacity={0.7}
       >
+        <View style={[styles.accentStrip, { backgroundColor: accentColor }]} />
         <PlayButtonIcon />
         {renderMiddleSection()}
         <ButtonSquare
@@ -186,18 +192,18 @@ const styles = StyleSheet.create({
   cardContainer: {
     flexDirection: 'row',
     backgroundColor: '#C9D2C0',
-    borderRadius: 8,
+    borderRadius: 16,
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-    elevation: 2,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    elevation: 4,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 1,
+      height: 4,
     },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
   },
   failedCardContainer: {
     backgroundColor: '#FFE6E6',
@@ -208,6 +214,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#E6F3FF',
     borderWidth: 1,
     borderColor: '#4DABF7',
+  },
+  accentStrip: {
+    width: 6,
+    alignSelf: 'stretch',
+    borderTopLeftRadius: 16,
+    borderBottomLeftRadius: 16,
+    marginRight: 10,
   },
   middleSection: {
     // backgroundColor: 'red',

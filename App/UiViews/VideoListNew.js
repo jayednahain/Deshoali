@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { ThemeColors } from '../AppTheme';
+import ColorBubblesBackground from '../Components/Decorative/ColorBubblesBackground';
 import {
   BottomButtonSectionWithText,
   CustomLoader,
@@ -826,6 +827,7 @@ export default function VideoListNew() {
   const renderVideoList = useCallback(() => {
     return (
       <View style={styles.container}>
+        <ColorBubblesBackground density="medium" />
         <VideoSearchBar
           onSearch={handleSearch}
           isSearching={isSearching}
@@ -846,6 +848,7 @@ export default function VideoListNew() {
     isRefreshing,
     handleSearch,
     isSearching,
+    i18n,
   ]);
 
   // ====================
@@ -858,6 +861,7 @@ export default function VideoListNew() {
     if (!isInitialized) {
       return (
         <View style={styles.container}>
+          <ColorBubblesBackground density="low" />
           <CustomLoader visible={true} />
         </View>
       );
@@ -866,6 +870,7 @@ export default function VideoListNew() {
     // Show downloaded videos (or empty state if none)
     return (
       <View style={styles.container}>
+        <ColorBubblesBackground density="medium" />
         {/* <View>
           <Button
             title="Refresh"
@@ -907,6 +912,7 @@ export default function VideoListNew() {
     if (!hasOfflineVideos) {
       return (
         <View style={styles.container}>
+          <ColorBubblesBackground density="low" />
           <CustomLoader visible={false} />
         </View>
       );
@@ -920,6 +926,7 @@ export default function VideoListNew() {
     return (
       <>
         <View style={styles.container}>
+          <ColorBubblesBackground density="medium" />
           <VideoSearchBar
             onSearch={handleSearch}
             isSearching={isSearching}
@@ -944,6 +951,7 @@ export default function VideoListNew() {
   return (
     <>
       <View style={styles.container}>
+        <ColorBubblesBackground density="medium" />
         {/* <View>
           <Button
             title="Refresh"
@@ -1036,11 +1044,13 @@ export default function VideoListNew() {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: ThemeColors.colorWhite,
+    backgroundColor: '#F8FAFC',
     flex: 1,
+    position: 'relative',
+    overflow: 'hidden',
   },
   centerContainer: {
-    backgroundColor: ThemeColors.colorWhite,
+    backgroundColor: '#F8FAFC',
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',

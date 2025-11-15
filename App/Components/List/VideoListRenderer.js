@@ -23,13 +23,19 @@ export default function VideoListRenderer({
   }, [videos, isOnline]);
 
   // Memoize the render function to prevent re-creation on each render
-  const renderVideoItem = useCallback(({ item }) => {
+  const renderVideoItem = useCallback(({ item, index }) => {
     if (!item || item.id === undefined || item.id === null) {
       console.warn('[VideoListRenderer] Invalid video item:', item);
       return null;
     }
 
-    return <CardVideoListItem cardItem={item} key={item.id} />;
+    return (
+      <CardVideoListItem
+        cardItem={item}
+        index={index}
+        key={item.id}
+      />
+    );
   }, []);
 
   // Memoize key extractor for better performance
