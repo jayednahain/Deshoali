@@ -1,5 +1,4 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
-import CrashReportService from '../../Service/CrashReportService';
 import DownloadManager from '../../Service/DownloadManager';
 import LocalStorageService from '../../Service/LocalStorageService';
 import ServerSyncService from '../../Service/ServerSyncService';
@@ -65,50 +64,127 @@ export const loadLocalVideosThunk = createAsyncThunk(
 // Start auto download process for all NEW videos
 export const startAutoDownloadThunk = createAsyncThunk(
   'Videos/startAutoDownload',
-  async (videosWithStatus, { dispatch, rejectWithValue }) => {
+  async (videosWithStatus, { dispatch, rejectWithValue, getState }) => {
     try {
-      console.log('[startAutoDownloadThunk] Starting download process...');
+      console.log('[VideosSlice] Starting auto download process');
 
-      const downloadManager = DownloadManager.getInstance();
+      if (!Array.isArray(videosWithStatus)) {
+        throw new Error('Invalid videos array provided');
+      }
 
-      // Filter only NEW videos
-      const newVideos = videosWithStatus.filter(
-        video => video.status === 'NEW',
-      );
+      // Filter videos that are NEW status and need download
+      const newVideos = videosWithStatus
+        .filter(
+          video =>
+            video.status === 'NEW' &&
+            video.id !== undefined &&
+            video.id !== null,
+        )
+        .sort((a, b) => a.id - b.id); // Sort by ID ascending (0, 1, 2, 3...)
 
       if (newVideos.length === 0) {
-        console.log('[startAutoDownloadThunk] No new videos to download');
-        return { success: true, message: 'No new videos to download' };
+        console.log('[VideosSlice] No new videos to download');
+        return { message: 'No new videos to download', downloadCount: 0 };
       }
 
       console.log(
-        `[startAutoDownloadThunk] Found ${newVideos.length} new videos to download`,
+        `[VideosSlice] Found ${newVideos.length} new videos to download`,
       );
 
-      // ✅ CRITICAL: Do NOT set callbacks here!
-      // Callbacks are already set in VideoListNew.js useEffect 8
-      // Setting them here would overwrite the VideoListNew callbacks
+      // Get DownloadManager instance
+      const downloadManager = DownloadManager.getInstance();
 
-      // Just start the download - callbacks are already configured
-      const result = await downloadManager.startAutoDownload(newVideos);
+      // Setup callbacks for download progress and status updates
+      const onProgress = (videoId, progress) => {
+        if (typeof videoId === 'number' && typeof progress === 'number') {
+          dispatch(updateDownloadProgress({ videoId, progress }));
+        }
+      };
 
-      console.log('[startAutoDownloadThunk] Download process started:', result);
-      return result;
+      const onStatusChange = (
+        videoId,
+        status,
+        localFilePath = null,
+        errorMessage = null,
+      ) => {
+        try {
+          if (typeof videoId === 'number' && status) {
+            // Handle download completion with localFilePath
+            if (status === 'DOWNLOADED' && localFilePath) {
+              console.log(
+                `[VideosSlice] Download completed for video ${videoId} with file path: ${localFilePath}`,
+              );
+              dispatch(completeDownload({ videoId, status, localFilePath }));
+            } else {
+              dispatch(updateVideoStatus({ videoId, status }));
+            }
+
+            // Handle download start/completion status changes
+            if (status === 'DOWNLOADING') {
+              dispatch(setCurrentDownload(videoId));
+            } else if (status === 'DOWNLOADED' || status === 'FAILED') {
+              dispatch(setCurrentDownload(null));
+            }
+
+            // ✅ FIX #4: Add error modal dispatch for PAUSED and FAILED
+            if (status === 'PAUSED') {
+              console.log(`[VideosSlice] Download paused for video ${videoId}`);
+              dispatch(
+                setDownloadError({
+                  errorMessage:
+                    errorMessage ||
+                    'Download paused due to network loss. Will resume when network is available.',
+                  errorType: 'NETWORK',
+                  videoId,
+                  videoName: `Video ${videoId}`,
+                }),
+              );
+            } else if (status === 'FAILED') {
+              console.log(`[VideosSlice] Download failed for video ${videoId}`);
+              dispatch(
+                setDownloadError({
+                  errorMessage:
+                    errorMessage || 'Download failed. Please try again.',
+                  errorType: 'UNKNOWN',
+                  videoId,
+                  videoName: `Video ${videoId}`,
+                }),
+              );
+            }
+          }
+        } catch (error) {
+          console.error('[VideosSlice] Error in status callback:', error);
+        }
+      };
+
+      // Set callbacks on the download manager
+      downloadManager.setProgressCallback(onProgress);
+      downloadManager.setStatusCallback(onStatusChange);
+
+      // Start auto-download with sequential processing
+      const downloadResult = await downloadManager.startAutoDownload(newVideos);
+
+      console.log(
+        '[VideosSlice] Auto download process completed:',
+        downloadResult,
+      );
+
+      if (downloadResult) {
+        return {
+          message: `Auto download process completed successfully for ${newVideos.length} videos`,
+          downloadCount: newVideos.length,
+          successful: true,
+        };
+      } else {
+        return {
+          message: 'Auto download process completed with errors',
+          downloadCount: 0,
+          successful: false,
+        };
+      }
     } catch (error) {
-      console.error(
-        '[startAutoDownloadThunk] Error starting downloads:',
-        error,
-      );
-
-      // Log to crash report
-      CrashReportService.addLog('startAutoDownloadThunk failed', 'ERROR', {
-        error: error.message,
-        stack: error.stack,
-      });
-
-      return rejectWithValue({
-        message: error.message || 'Failed to start downloads',
-      });
+      console.error('[VideosSlice] Error in auto download process:', error);
+      return rejectWithValue(error.message || 'Auto download process failed');
     }
   },
 );
@@ -693,19 +769,23 @@ const videoSlice = createSlice({
 
       // Start auto download thunk
       .addCase(startAutoDownloadThunk.pending, state => {
-        console.log('[VideosSlice] Download thunk pending...');
-        state.isLoading = true;
-        state.isError = false;
+        console.log('[VideosSlice] Auto download process starting...');
+        // Don't set isLoading here as it might interfere with video fetching
       })
       .addCase(startAutoDownloadThunk.fulfilled, (state, action) => {
-        console.log('[VideosSlice] Download thunk fulfilled:', action.payload);
-        state.isLoading = false;
+        console.log(
+          '[VideosSlice] Auto download process completed:',
+          action.payload,
+        );
+        // Download results are handled by individual progress callbacks
       })
       .addCase(startAutoDownloadThunk.rejected, (state, action) => {
-        console.error('[VideosSlice] Download thunk rejected:', action.payload);
-        state.isLoading = false;
-        state.isError = true;
-        state.errorMessage = action.payload?.message || 'Download failed';
+        console.error(
+          '[VideosSlice] Auto download process failed:',
+          action.payload,
+        );
+        // Clear any stuck current download
+        state.currentDownload = null;
       })
 
       // Retry video download thunk
