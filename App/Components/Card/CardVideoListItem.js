@@ -53,7 +53,7 @@ export default function CardVideoListItem({ cardItem, index = 0 }) {
       Alert.alert(
         i18n('video_not_available') || 'Video Not Available',
         i18n('video_not_downloaded') ||
-          'This video is not downloaded yet. Please download it first to play.',
+        'This video is not downloaded yet. Please download it first to play.',
         [{ text: i18n('ok') || 'OK' }],
       );
       return;
@@ -114,6 +114,7 @@ export default function CardVideoListItem({ cardItem, index = 0 }) {
         <H4
           textStyle={{
             fontWeight: !collapsed ? '600' : 'normal',
+            color: ThemeColors.text,
             // color: !collapsed && ThemeColors.colorWhite,
           }}
           numberOfLines={2}
@@ -155,10 +156,10 @@ export default function CardVideoListItem({ cardItem, index = 0 }) {
           status === 'FAILED' && styles.failedCardContainer,
           isCurrentlyDownloading && styles.downloadingCardContainer,
           { backgroundColor: bgColor },
-          !collapsed && {
-            borderColor: ThemeColors.colorPrimary,
-            borderWidth: 2,
-          },
+          // !collapsed && {
+          //   borderColor: ThemeColors.colorPrimary,
+          //   borderWidth: 2,
+          // },
         ]}
         onPress={() => {
           handleVideoPress();
@@ -166,7 +167,9 @@ export default function CardVideoListItem({ cardItem, index = 0 }) {
         activeOpacity={0.7}
       >
         <View style={[styles.accentStrip, { backgroundColor: accentColor }]} />
-        <PlayButtonIcon />
+        <View style={styles.leftIconHolder}>
+          <PlayButtonIcon />
+        </View>
         {renderMiddleSection()}
         <ButtonSquare
           logo={!collapsed ? <ArrowIconUp /> : <ArrowIconDownWhite />}
@@ -188,6 +191,8 @@ export default function CardVideoListItem({ cardItem, index = 0 }) {
 const styles = StyleSheet.create({
   itemContainer: {
     marginBottom: 12,
+    borderRadius: 16,
+    overflow: 'hidden',
   },
   cardContainer: {
     flexDirection: 'row',
@@ -224,8 +229,17 @@ const styles = StyleSheet.create({
   },
   middleSection: {
     // backgroundColor: 'red',
-    width: '70%',
+    flex: 1,
     paddingHorizontal: 8,
+  },
+  leftIconHolder: {
+    width: 25,
+    height: 25,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    marginLeft: 8
   },
   descriptionText: {
     marginVertical: 4,
@@ -257,7 +271,8 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: 'rgba(172, 57, 57, 0.75)',
-    borderRadius: 8,
+    // Match the card's radius so corners don't show square overlays
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,

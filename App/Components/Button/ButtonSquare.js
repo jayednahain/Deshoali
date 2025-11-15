@@ -1,21 +1,37 @@
-import { StyleSheet, TouchableOpacity } from 'react-native';
+import { StyleSheet, TouchableOpacity, View } from 'react-native';
 
-export default function ButtonSquare({ logo, onPress }) {
+// A small square/circular button for icons. Provides a contrast backdrop so the icon
+// remains visible on any background, and ensures a comfortable touch target.
+export default function ButtonSquare({
+  logo,
+  onPress,
+  style,
+  withBackdrop = true,
+}) {
   return (
-    <TouchableOpacity onPress={onPress} style={styles.buttonContainer}>
-      {logo}
+    <TouchableOpacity onPress={onPress} style={[styles.touchArea, style]} activeOpacity={0.7}>
+      {withBackdrop ? <View style={styles.backdrop} /> : null}
+      <View style={styles.iconContainer}>{logo}</View>
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
-  buttonContainer: {
-    width: '30',
-    height: '30',
-    backgroundColor: '#4D870E',
+  touchArea: {
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    // margin: 10,
-    borderRadius: 10,
+  },
+  backdrop: {
+    position: 'absolute',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.25)', // subtle contrast capsule
+  },
+  iconContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import Orientation from 'react-native-orientation-locker';
-import { H2, ThemeColors } from '../AppTheme';
+import { ThemeColors } from '../AppTheme';
 import VideoPlayer from '../Components/Player/VideoPlayer';
 import { useAppLanguage } from '../Hooks/useAppLagnuage';
 
@@ -148,7 +148,7 @@ export default function VideoDetails() {
     return (
       <View style={styles.container}>
         <StatusBar
-          backgroundColor={ThemeColors.colorBlack}
+          backgroundColor="#6D28D9"
           barStyle="light-content"
         />
         <View style={styles.errorContainer}>
@@ -182,22 +182,31 @@ export default function VideoDetails() {
     >
       <StatusBar
         hidden={isFullscreen}
-        backgroundColor={ThemeColors.colorBlack}
+        backgroundColor={isFullscreen ? ThemeColors.colorBlack : '#6D28D9'}
         barStyle="light-content"
       />
 
       {/* Header - Hide in fullscreen */}
       {!isFullscreen && (
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={handleGoBack}>
-            <Text style={styles.backButtonText}>
-              <H2>←</H2>
-              {i18n('back') || 'Back'}
+          {/* Decorative subtle overlay for flair */}
+          <View style={styles.headerDecor} />
+          <View style={styles.headerInner}>
+            <TouchableOpacity
+              style={styles.backPill}
+              onPress={handleGoBack}
+              activeOpacity={0.8}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Text style={styles.backIcon}>‹</Text>
+              <Text style={styles.backLabel}>{i18n('back') || 'Back'}</Text>
+            </TouchableOpacity>
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              {name}
             </Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            {name}
-          </Text>
+            {/* Spacer to keep title perfectly centered */}
+            <View style={styles.headerRightSpacer} />
+          </View>
         </View>
       )}
 
@@ -271,34 +280,72 @@ const styles = StyleSheet.create({
     backgroundColor: ThemeColors.colorBlack,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: ThemeColors.colorPrimary || '#007AFF',
-    elevation: 2,
+    backgroundColor: '#6D28D9',
+    elevation: 4,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+    position: 'relative',
+  },
+  headerDecor: {
+    position: 'absolute',
+    right: -30,
+    top: -20,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: 'rgba(255,59,127,0.25)', // soft coral halo
+  },
+  headerInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   backButton: {
     marginRight: 12,
     flexDirection: 'row',
     alignItems: 'center',
   },
-  backButtonText: {
+  backPill: {
+    minWidth: 90,
+    flexDirection: 'row',
     alignItems: 'center',
-    fontSize: 20,
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#FF3B7F',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 22,
+    elevation: 3,
+    shadowColor: '#FF3B7F',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+  },
+  backIcon: {
     color: ThemeColors.colorWhite,
-    fontWeight: '500',
+    fontSize: 18,
+    marginTop: -1, // optical alignment
+  },
+  backLabel: {
+    color: ThemeColors.colorWhite,
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   headerTitle: {
-    // flex: 1,
+    flex: 1,
     color: ThemeColors.colorWhite,
     fontSize: 18,
     fontWeight: 'bold',
+    textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.25)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
+  headerRightSpacer: { width: 90 },
   playerContainer: {
     aspectRatio: 16 / 9,
     backgroundColor: ThemeColors.colorBlack,
