@@ -21,14 +21,12 @@ import {
 } from '../Features/Modal/modalSlice';
 import {
   fetchVideosThunk,
-  incrementVideosDownloaded,
   loadLocalVideosThunk,
   resetApiVideosOnly,
   resetDownloadTracking,
   resetVideosState,
   searchVideosThunk,
   serverSyncThunk,
-  setCurrentDownload,
   setDownloadingInModal,
   setSearchQuery,
   setTotalVideosToDownload,
@@ -37,7 +35,6 @@ import {
   updateVideoStatus,
 } from '../Features/Videos/VideosSlice';
 import useAppLanguage from '../Hooks/useAppLagnuage';
-import { useAppStatus } from '../Hooks/useAppStatus';
 import { useNetworkStatus } from '../Hooks/useNetworkStatus';
 import DownloadManager from '../Service/DownloadManager';
 import FileSystemService from '../Service/FileSystemService';
@@ -46,8 +43,6 @@ import * as VideoComparison from '../Utils/VideoComparison';
 export default function VideoListNew() {
   const dispatch = useDispatch();
   const { isOnline } = useNetworkStatus();
-  // const isOnline = false;
-  const { appStatus } = useAppStatus();
   const { i18n } = useAppLanguage();
 
   const videosState = useSelector(state => state.videosStore);
@@ -83,6 +78,12 @@ export default function VideoListNew() {
   const lastSyncKeyRef = useRef('');
   const isProcessingRef = useRef(false);
   const downloadManagerInitialized = useRef(false);
+  const isOnlineRef = useRef(isOnline); // ✅ Track online status in ref
+
+  // ✅ Update ref when isOnline changes
+  useEffect(() => {
+    isOnlineRef.current = isOnline;
+  }, [isOnline]);
 
   // Memoized values
   const downloadedVideos = useMemo(() => {
@@ -122,39 +123,54 @@ export default function VideoListNew() {
       return;
     }
 
-    // Only check NEW and DOWNLOADING (actively being processed)
-    // FAILED videos should NOT prevent modal from hiding
+    // ✅ Only check NEW and DOWNLOADING (actively being processed)
+    // ✅ PAUSED videos are waiting for network - don't count as "processing"
     const stillProcessing = videosWithStatus.filter(
       v => v.status === 'NEW' || v.status === 'DOWNLOADING',
     );
 
     const completed = videosWithStatus.filter(v => v.status === 'DOWNLOADED');
-
     const failed = videosWithStatus.filter(v => v.status === 'FAILED');
+    const paused = videosWithStatus.filter(v => v.status === 'PAUSED');
 
     console.log(
-      `[VideoListNew] 🔍 COMPLETION CHECK - Processing: ${stillProcessing.length}, Downloaded: ${completed.length}, Failed: ${failed.length}`,
+      `[VideoListNew] 🔍 COMPLETION CHECK - Processing: ${stillProcessing.length}, Downloaded: ${completed.length}, Failed: ${failed.length}, Paused: ${paused.length}`,
     );
 
-    // Hide modal when all NEW videos are either DOWNLOADED or FAILED
-    // (No more NEW or DOWNLOADING status)
+    // ✅ CRITICAL FIX: Hide modal only when:
+    // - No videos actively processing (NEW or DOWNLOADING)
+    // - AND (some completed OR some failed)
+    // - PAUSED videos don't prevent modal from hiding if queue is done
     if (
       stillProcessing.length === 0 &&
       (completed.length > 0 || failed.length > 0)
     ) {
+      // ✅ Check if there are paused videos
+      if (paused.length > 0) {
+        console.log(
+          `[VideoListNew] ⏸️ ${paused.length} videos PAUSED - keeping modal visible for auto-resume`,
+        );
+        // Don't hide modal if videos are paused - they'll auto-resume
+        return;
+      }
+
       console.log('[VideoListNew] ✨ ALL DOWNLOADS COMPLETE! HIDING MODAL...');
 
       dispatch(hideDownloadingProcessModal());
       dispatch(setDownloadingInModal(false));
       dispatch(resetDownloadTracking());
 
-      // Show bottom warning if there are failed videos
+      // ✅ Show bottom warning ONLY for failed videos (not paused)
       if (failed.length > 0) {
         console.log(
           `[VideoListNew] ⚠️ ${failed.length} FAILED videos - showing retry button`,
         );
         setPendingVideosCount(failed.length);
         setShowBottomWarning(true);
+      } else {
+        // ✅ No failed videos - hide warning
+        setPendingVideosCount(0);
+        setShowBottomWarning(false);
       }
     }
   }, [videosWithStatus, downloadingProcessModal, dispatch]);
@@ -162,11 +178,11 @@ export default function VideoListNew() {
   // ====================
   // useEffect 1: App status logging
   // ====================
-  useEffect(() => {
-    if (appStatus) {
-      console.log('[VideoListNew] App status changed:', appStatus);
-    }
-  }, [appStatus]);
+  // useEffect(() => {
+  //   if (appStatus) {
+  //     console.log('[VideoListNew] App status changed:', appStatus);
+  //   }
+  // }, [appStatus]);
 
   // ====================
   // useEffect 2: Initialize app
@@ -295,23 +311,35 @@ export default function VideoListNew() {
   // useEffect 4.5: Check for FAILED videos on app load/merge complete
   // ====================
   useEffect(() => {
-    // Only check after videos are merged and modal is NOT visible
+    // ✅ CRITICAL FIX: Only check when modal is NOT visible AND downloads are not active
     if (
       videosWithStatus &&
       videosWithStatus.length > 0 &&
-      !downloadingProcessModal?.visible
+      !downloadingProcessModal?.visible &&
+      !currentDownload // ✅ Also check no active download
     ) {
       const failedVids = videosWithStatus.filter(v => v.status === 'FAILED');
+      const pausedVids = videosWithStatus.filter(v => v.status === 'PAUSED');
 
+      console.log(
+        `[VideoListNew] 🔍 Checking failed/paused videos: ${failedVids.length} failed, ${pausedVids.length} paused`,
+      );
+
+      // ✅ Show warning only for FAILED (not PAUSED)
       if (failedVids.length > 0) {
+        console.log(
+          `[VideoListNew] ⚠️ Found ${failedVids.length} FAILED videos - showing retry button`,
+        );
         setPendingVideosCount(failedVids.length);
         setShowBottomWarning(true);
       } else {
-        // No failed videos, hide warning if it was showing
+        // ✅ CRITICAL FIX: Hide warning if no failed videos
+        console.log('[VideoListNew] ✅ No failed videos - hiding retry button');
+        setPendingVideosCount(0);
         setShowBottomWarning(false);
       }
     }
-  }, [videosWithStatus, downloadingProcessModal?.visible]);
+  }, [videosWithStatus, downloadingProcessModal?.visible, currentDownload]);
 
   // ====================
   // useEffect 5: Server synchronization (2s delay)
@@ -384,27 +412,35 @@ export default function VideoListNew() {
   // ====================
   useEffect(() => {
     if (!downloadingProcessModal?.visible) {
+      console.log('[VideoListNew] ⏭️ BACKUP CHECK SKIPPED - Modal not visible');
       return;
     }
 
     if (!videosWithStatus || videosWithStatus.length === 0) {
+      console.log('[VideoListNew] ⏭️ BACKUP CHECK SKIPPED - No videos');
       return;
     }
 
-    // Only check NEW and DOWNLOADING (actively being processed)
+    // ✅ Only check NEW and DOWNLOADING (actively being processed)
     const stillProcessing = videosWithStatus.filter(
       v => v.status === 'NEW' || v.status === 'DOWNLOADING',
     );
 
     const completed = downloadedVideos.length;
     const failed = videosWithStatus.filter(v => v.status === 'FAILED').length;
+    const paused = videosWithStatus.filter(v => v.status === 'PAUSED').length;
 
     console.log(
-      `[VideoListNew] 🔄 BACKUP CHECK - Processing: ${stillProcessing.length}, Downloaded: ${completed}, Failed: ${failed}`,
+      `[VideoListNew] 🔄 BACKUP CHECK - Processing: ${stillProcessing.length}, Downloaded: ${completed}, Failed: ${failed}, Paused: ${paused}, Online: ${isOnline}`,
     );
 
-    // If no videos still processing and modal is still visible, hide it
-    if (stillProcessing.length === 0 && (completed > 0 || failed > 0)) {
+    // ✅ CRITICAL FIX: Don't hide if videos are paused OR if offline
+    if (
+      stillProcessing.length === 0 &&
+      (completed > 0 || failed > 0) &&
+      paused === 0 &&
+      isOnline // ✅ NEW: Only hide if online (useEffect 11 handles offline case)
+    ) {
       console.log(
         '[VideoListNew] 🚨 BACKUP CHECK TRIGGERED - Hiding modal now!',
       );
@@ -414,20 +450,32 @@ export default function VideoListNew() {
         dispatch(setDownloadingInModal(false));
         dispatch(resetDownloadTracking());
 
-        // Show bottom warning if there are failed videos
+        // ✅ Show bottom warning only for failed videos
         if (failed > 0) {
           console.log(
             `[VideoListNew] ⚠️ ${failed} FAILED videos - showing retry button`,
           );
           setPendingVideosCount(failed);
           setShowBottomWarning(true);
+        } else {
+          setPendingVideosCount(0);
+          setShowBottomWarning(false);
         }
       }, 500);
+    } else if (paused > 0 && stillProcessing.length === 0) {
+      console.log(
+        `[VideoListNew] ⏸️ ${paused} videos paused - keeping modal visible`,
+      );
+    } else if (!isOnline) {
+      console.log(
+        `[VideoListNew] 📡 Offline - useEffect 11 will handle modal hiding`,
+      );
     }
   }, [
     videosWithStatus,
     downloadingProcessModal,
     downloadedVideos.length,
+    isOnline, // ✅ NEW: Add isOnline to dependencies
     dispatch,
   ]);
 
@@ -447,6 +495,13 @@ export default function VideoListNew() {
     downloadManager.setModalCallback(
       (videoName, progress, totalVideos, completedVideos) => {
         try {
+          // ✅ CRITICAL FIX: Don't update modal if offline
+          // This prevents progress updates after network disconnect
+          if (!isOnlineRef.current) {
+            console.log('[VideoListNew] 📵 Skipping modal update - offline');
+            return;
+          }
+
           const update = {};
           if (videoName !== null && videoName !== undefined) {
             update.currentVideoName = videoName;
@@ -467,76 +522,16 @@ export default function VideoListNew() {
       },
     );
 
-    // Status callback - handle completion/failure/pause
-    downloadManager.setStatusCallback(
-      (videoId, status, localFilePath, callbackErrorMessage) => {
-        try {
-          console.log(
-            `[VideoListNew] 📡 Status callback: Video ${videoId} -> ${status}`,
-          );
-
-          dispatch(updateVideoStatus({ videoId, status }));
-
-          // ✅ DOWNLOADED: Increment counter and check completion
-          if (status === 'DOWNLOADED') {
-            dispatch(incrementVideosDownloaded());
-
-            // Check completion after a delay to ensure state updates
-            setTimeout(() => {
-              checkAndHideModalIfComplete();
-            }, 500);
-          }
-
-          // ✅ PAUSED: Network loss - Show internet error modal
-          else if (status === 'PAUSED') {
-            console.warn(
-              `[VideoListNew] ⚠️ Download PAUSED for video ${videoId}: ${callbackErrorMessage}`,
-            );
-
-            // Keep modal visible, don't hide it
-            // The toast notification will be shown from DownloadManager
-          } else if (status === 'FAILED') {
-            console.error(
-              `[VideoListNew] ❌ Download FAILED: ${videoId} - ${callbackErrorMessage}`,
-            );
-
-            // Hide downloading modal
-            dispatch(hideDownloadingProcessModal());
-            dispatch(setDownloadingInModal(false));
-
-            // Show error modal with retry option
-            dispatch(
-              showErrorModal({
-                title: 'ডাউনলোড ব্যর্থ',
-                message:
-                  callbackErrorMessage || 'ডাউনলোড করার সময় সমস্যা হয়েছে।',
-                type: 'download_error',
-                retryAction: () => {
-                  setShowBottomWarning(false);
-                  setShowLoader(true);
-                  setTimeout(() => {
-                    dispatch(fetchVideosThunk());
-                  }, 500);
-                },
-                canCancel: true,
-              }),
-            );
-          }
-
-          // Update current download tracking
-          if (status === 'DOWNLOADING') {
-            dispatch(setCurrentDownload(videoId));
-          } else if (status === 'DOWNLOADED' || status === 'FAILED') {
-            dispatch(setCurrentDownload(null));
-          }
-        } catch (error) {
-          console.error('[VideoListNew] ❌ Error in status callback:', error);
-        }
-      },
-    );
+    // ✅ NOTE: Status callback is set in VideosSlice (document 11)
+    // Don't duplicate it here to avoid callback conflicts
 
     downloadManagerInitialized.current = true;
-  }, [dispatch, checkAndHideModalIfComplete]);
+    console.log('[VideoListNew] ✅ Download manager callbacks initialized');
+
+    return () => {
+      console.log('[VideoListNew] 🧹 Cleaning up download manager callbacks');
+    };
+  }, [dispatch]);
 
   // ====================
   // useEffect 9: Modal-based auto-download (1s delay)
@@ -657,49 +652,23 @@ export default function VideoListNew() {
   }, [isError, errorMessage, localVideos, dispatch]);
 
   // ====================
-  // useEffect 11: Monitor network status during download - Show internet error modal
+  // useEffect 11: Monitor network status - Hide modal when offline
   // ====================
   useEffect(() => {
-    // Only act if we're currently downloading (modal is visible)
-    // if (!isOnline && downloadingProcessModal?.visible) {
-    //   console.log(
-    //     '[VideoListNew] 🔴 Network lost during download - showing internet error modal',
-    //   );
+    if (!isOnline && downloadingProcessModal?.visible) {
+      console.log(
+        '[VideoListNew] 🔴 Network offline - HIDING MODAL IMMEDIATELY',
+      );
 
-    //   // Hide download progress modal immediately
-    //   dispatch(hideDownloadingProcessModal());
-    //   dispatch(setDownloadingInModal(false));
-
-    //   // Show internet error modal after 0.5 second delay
-    //   const timer = setTimeout(() => {
-    //     dispatch(showInternetErrorModal());
-
-    //     // Set retry callback
-    //     setInternetErrorModalRetryCallback(() => {
-    //       console.log('[VideoListNew] Internet error modal retry clicked');
-
-    //       // Check if online before retrying
-    //       if (isOnline) {
-    //         dispatch(setDownloadingInModal(true));
-    //         dispatch(showDownloadingProcessModal());
-
-    //         // Trigger download restart
-    //         setTimeout(() => {
-    //           dispatch(startAutoDownloadThunk());
-    //         }, 500);
-    //       } else {
-    //         console.log('[VideoListNew] Still offline, cannot retry');
-    //       }
-    //     });
-    //   }, 500);
-
-    //   return () => clearTimeout(timer);
-    // }
-
-    if (!isOnline) {
+      // ✅ SIMPLE FIX: Just hide the modal when internet goes off
       dispatch(hideDownloadingProcessModal());
+      dispatch(setDownloadingInModal(false));
+    } else if (isOnline) {
+      console.log('[VideoListNew] 🟢 Network online');
+    } else {
+      console.log('[VideoListNew] 🔴 Network offline (modal already hidden)');
     }
-  }, [isOnline, dispatch]);
+  }, [isOnline, downloadingProcessModal?.visible, dispatch]);
 
   // ====================
   // HANDLERS
