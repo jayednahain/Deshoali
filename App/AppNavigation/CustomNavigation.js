@@ -3,7 +3,9 @@ import { createStackNavigator } from '@react-navigation/stack';
 import VideoDetails from '../UiViews/VideoDetails';
 // import VideoList from '../UiViews/VideoList'; // Old implementation
 import VideoListNew from '../UiViews/VideoListNew'; // NEW: Modal-centric implementation
-import { useAppLanguage } from './../Hooks/useAppLagnuage';
+import { useAppLanguage } from '../Hooks/useAppLagnuage';
+import { ThemeColors } from '../AppTheme';
+import { StatusBar } from 'react-native';
 
 const Stack = createStackNavigator();
 
@@ -18,7 +20,7 @@ const AppNavigation = () => {
 
       headerStyle: {
         // Vibrant header for a modern, colorful feel
-        backgroundColor: '#6D28D9', // Indigo/Violet
+        backgroundColor: '#4cdc59', // Indigo/Violet
         // Add a bit of height for presence
         // height: 60,
         // borderRadius: 10,
@@ -39,6 +41,10 @@ const AppNavigation = () => {
 
   return (
     <NavigationContainer>
+      <StatusBar
+        backgroundColor={ThemeColors.colorPrimary}
+        barStyle="light-content"
+      />
       <Stack.Navigator initialRouteName="AudioListView">
         <Stack.Screen
           name="AudioListView"

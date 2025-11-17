@@ -117,8 +117,8 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
   },
   searchContainerFocused: {
-    borderColor: '#FF3B7F',
-    shadowColor: '#FF3B7F',
+    borderColor: ThemeColors.colorPrimary,
+    shadowColor: '#353535',
     shadowOpacity: 0.2,
   },
   searchInput: {
@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
     height: 44,
     borderWidth: 0,
     paddingHorizontal: 8,
-    fontSize: 16,
+    fontSize: 12,
     color: ThemeColors.colorBlack,
     backgroundColor: 'transparent',
   },
@@ -135,29 +135,29 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   clearButton: {
-    paddingHorizontal: 14,
+    paddingHorizontal: 8,
     paddingVertical: 10,
-    borderRadius: 20,
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor: '#FF3B7F55',
+    borderColor: ThemeColors.colorPrimary,
     backgroundColor: '#FFFFFF',
     elevation: 1,
   },
   clearButtonText: {
-    color: '#FF3B7F',
-    fontSize: 14,
+    color: ThemeColors.colorPrimary,
+    fontSize: 12,
     fontWeight: '600',
   },
   searchButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 10,
     borderRadius: 22,
-    backgroundColor: '#FF3B7F', // Vibrant pink/coral
-    minWidth: 80,
+    backgroundColor: ThemeColors.colorPrimary, // Vibrant pink/coral
+    minWidth: 65,
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 3,
-    shadowColor: '#FF3B7F',
+    shadowColor: '#424242',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 6,
@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
   },
   searchButtonText: {
     color: ThemeColors.colorWhite,
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: 'bold',
   },
 });

@@ -182,7 +182,7 @@ export default function VideoDetails() {
     >
       <StatusBar
         hidden={isFullscreen}
-        backgroundColor={isFullscreen ? ThemeColors.colorBlack : '#6D28D9'}
+        backgroundColor={isFullscreen ? ThemeColors.colorBlack : ThemeColors.colorPrimary}
         barStyle="light-content"
       />
 
@@ -282,7 +282,7 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#6D28D9',
+    backgroundColor: ThemeColors.colorPrimary,
     elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 3 },
@@ -297,7 +297,7 @@ const styles = StyleSheet.create({
     width: 140,
     height: 140,
     borderRadius: 70,
-    backgroundColor: 'rgba(255,59,127,0.25)', // soft coral halo
+    backgroundColor: '#10B981', // soft coral halo
   },
   headerInner: {
     flexDirection: 'row',
@@ -309,17 +309,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   backPill: {
-    minWidth: 90,
+    minWidth: 70,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: '#FF3B7F',
-    paddingHorizontal: 14,
+    backgroundColor: '#07b881',
+    paddingHorizontal: 8,
     paddingVertical: 8,
     borderRadius: 22,
     elevation: 3,
-    shadowColor: '#FF3B7F',
+    shadowColor: '#6a6a6a',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 6,
@@ -328,6 +328,7 @@ const styles = StyleSheet.create({
     color: ThemeColors.colorWhite,
     fontSize: 18,
     marginTop: -1, // optical alignment
+    alignItems: 'center',
   },
   backLabel: {
     color: ThemeColors.colorWhite,

@@ -233,13 +233,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   leftIconHolder: {
-    width: 25,
-    height: 25,
+    width: 15,
+    height: 15,
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
-    marginLeft: 8
+    marginRight: 15,
+    marginLeft: 13
   },
   descriptionText: {
     marginVertical: 4,

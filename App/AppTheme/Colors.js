@@ -1,5 +1,5 @@
 const ThemeLightColors = {
-  colorPrimary: '#4D870E',
+  colorPrimary: '#4cdc59',
   colorSecondary: '#C9D2C0',
   colorBlack: '#000000',
   colorWhite: '#FFFFFF',
