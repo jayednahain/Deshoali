@@ -248,16 +248,56 @@ export default function VideoListNew() {
           isProcessingRef.current = true;
           console.log('[VideoListNew] OFFLINE MODE - Loading local videos...');
 
-          const localVideosList = Object.values(localVideos).map(video => ({
-            ...video,
-            status: 'DOWNLOADED',
-          }));
+          // IMPORTANT: Do NOT mark every local video as DOWNLOADED.
+          // We must only show fully downloaded videos (with existing files)
+          // and keep failed/partial ones out of the downloaded list.
+          const localValues = Object.values(localVideos);
+          const downloaded = [];
+          const failed = [];
 
-          dispatch(setVideosWithStatus(localVideosList));
+          for (const v of localValues) {
+            if (!v || typeof v.id !== 'number') continue;
+
+            // Normalize record
+            const item = { ...v };
+
+            // Treat in-progress entries as failed on app restart (no auto-resume offline)
+            if (item.status === 'DOWNLOADING' || (item.downloadProgress ?? 0) < 100) {
+              item.status = 'FAILED';
+            }
+
+            if (item.status === 'DOWNLOADED') {
+              // Verify file actually exists
+              const exists = item.localFilePath
+                ? await FileSystemService.checkFileExists(item.localFilePath)
+                : false;
+
+              if (exists) {
+                item.downloadProgress = 100;
+                downloaded.push(item);
+              } else {
+                // File missing/corrupt → not a valid download; don't show in downloaded list
+                // Keep it out of the main list in offline mode
+                console.log(
+                  `[VideoListNew] OFFLINE: Local record says DOWNLOADED but file missing for video ${item.id}. Skipping from downloaded list.`,
+                );
+              }
+            } else if (item.status === 'FAILED') {
+              failed.push(item);
+            } else {
+              // NEW or any other state: skip in offline main list
+            }
+          }
+
+          // Combine: keep FAILED so it shows in the failed section/UI, but
+          // ensure only true DOWNLOADED appear as such.
+          const offlineMerged = [...downloaded, ...failed];
+
+          dispatch(setVideosWithStatus(offlineMerged));
           lastMergeKeyRef.current = currentMergeKey;
           setShowLoader(false);
           console.log(
-            `[VideoListNew] OFFLINE: Loaded ${localVideosList.length} local videos`,
+            `[VideoListNew] OFFLINE: Loaded ${downloaded.length} downloaded and ${failed.length} failed videos`,
           );
         } catch (error) {
           console.error('[VideoListNew] Offline merge error:', error);
