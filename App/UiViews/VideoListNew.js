@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { ThemeColors } from '../AppTheme';
-import ColorBubblesBackground from '../Components/Decorative/ColorBubblesBackground';
 import {
   BottomButtonSectionWithText,
   CustomLoader,
@@ -13,6 +12,7 @@ import {
   VideoSearchBar,
   setErrorModalRetryCallback,
 } from '../Components';
+import ColorBubblesBackground from '../Components/Decorative/ColorBubblesBackground';
 import { loadAppConfigThunk } from '../Features/Config/appConfigSlice';
 import {
   hideDownloadingProcessModal,
@@ -25,7 +25,6 @@ import {
   loadLocalVideosThunk,
   resetApiVideosOnly,
   resetDownloadTracking,
-  resetVideosState,
   searchVideosThunk,
   serverSyncThunk,
   setDownloadingInModal,
@@ -843,14 +842,6 @@ export default function VideoListNew() {
     return (
       <View style={styles.container}>
         <ColorBubblesBackground density="medium" />
-        {/* <View>
-          <Button
-            title="Refresh"
-            onPress={() => {
-              setIsOnline(!isOnline);
-            }}
-          />
-        </View> */}
         <OfflineHeader downloadedCount={downloadedCount} />
         <VideoSearchBar
           onSearch={handleSearch}
@@ -924,72 +915,7 @@ export default function VideoListNew() {
     <>
       <View style={styles.container}>
         <ColorBubblesBackground density="medium" />
-        {/* <View>
-          <Button
-            title="Refresh"
-            onPress={() => {
-              setIsOnline(!isOnline);
-            }}
-          />
-        </View> */}
         {renderVideoList()}
-
-        {/* DEBUG BUTTON */}
-        {/* {__DEV__ && (
-          <View
-            style={{
-              position: 'absolute',
-              top: 100,
-              right: 10,
-              backgroundColor: 'rgba(255, 0, 0, 0.9)',
-              padding: 8,
-              borderRadius: 8,
-              zIndex: 9999,
-            }}
-          >
-            <TouchableOpacity
-              onPress={() => {
-                const processing = videosWithStatus.filter(
-                  v => v.status === 'NEW' || v.status === 'DOWNLOADING',
-                );
-                const failed = videosWithStatus.filter(v => v.status === 'FAILED');
-
-                console.log('========== 🔍 DEBUG STATE ==========');
-                console.log('Modal visible:', downloadingProcessModal?.visible);
-                console.log('Modal state:', downloadingProcessModal);
-                console.log('Total videos:', videosWithStatus.length);
-                console.log('Processing (NEW/DOWNLOADING):', processing.length);
-                console.log('Downloaded:', downloadedVideos.length);
-                console.log('Failed:', failed.length);
-                console.log('Processing details:', processing);
-                console.log('Failed details:', failed);
-                console.log('====================================');
-              }}
-            >
-              <Text
-                style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}
-              >
-                DEBUG
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => {
-                console.log('🚫 FORCE HIDE MODAL (Manual)');
-                dispatch(hideDownloadingProcessModal());
-                dispatch(setDownloadingInModal(false));
-                dispatch(resetDownloadTracking());
-              }}
-              style={{ marginTop: 5 }}
-            >
-              <Text
-                style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}
-              >
-                HIDE
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )} */}
       </View>
       <CustomLoader visible={showLoader} />
       <DownloadingProcessModal />

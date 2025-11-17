@@ -53,7 +53,7 @@ export default function CardVideoListItem({ cardItem, index = 0 }) {
       Alert.alert(
         i18n('video_not_available') || 'Video Not Available',
         i18n('video_not_downloaded') ||
-        'This video is not downloaded yet. Please download it first to play.',
+          'This video is not downloaded yet. Please download it first to play.',
         [{ text: i18n('ok') || 'OK' }],
       );
       return;
@@ -145,8 +145,22 @@ export default function CardVideoListItem({ cardItem, index = 0 }) {
   };
 
   const renderMainContent = () => {
-    const palette = ['#FDE68A', '#BFDBFE', '#C7F9CC', '#E9D5FF', '#FECACA', '#BAE6FD'];
-    const accentPalette = ['#F59E0B', '#3B82F6', '#10B981', '#8B5CF6', '#EF4444', '#0EA5E9'];
+    const palette = [
+      '#FDE68A',
+      '#BFDBFE',
+      '#C7F9CC',
+      '#E9D5FF',
+      '#FECACA',
+      '#BAE6FD',
+    ];
+    const accentPalette = [
+      '#F59E0B',
+      '#3B82F6',
+      '#10B981',
+      '#8B5CF6',
+      '#EF4444',
+      '#0EA5E9',
+    ];
     const bgColor = palette[index % palette.length];
     const accentColor = accentPalette[index % accentPalette.length];
     return (
@@ -231,6 +245,7 @@ const styles = StyleSheet.create({
     // backgroundColor: 'red',
     flex: 1,
     paddingHorizontal: 8,
+    marginLeft: 10,
   },
   leftIconHolder: {
     width: 15,
@@ -239,7 +254,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 15,
-    marginLeft: 13
+    marginLeft: 20,
   },
   descriptionText: {
     marginVertical: 4,
