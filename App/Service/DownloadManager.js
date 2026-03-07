@@ -4,6 +4,7 @@ import Toast from 'react-native-toast-message';
 import CrashReportService from './CrashReportService';
 import FileSystemService from './FileSystemService';
 import LocalStorageService from './LocalStorageService';
+import baseUrl from './baseUrl';
 
 /**
  * DownloadManager - Singleton service for sequential video downloads
@@ -905,7 +906,7 @@ class DownloadManager {
       if (video && video.filepath && typeof video.filepath === 'string') {
         // API returns relative path like "storage/media_files/1759859009304_videoplayback.mp4"
         // We need to construct full URL: https://api.redfynix.com/storage/media_files/1759859009304_videoplayback.mp4
-        const baseUrl = 'https://api.redfynix.com/';
+        // const baseUrl = baseUrl;
         const fullUrl = `${baseUrl}${video.filepath}`;
 
         console.log(
@@ -924,7 +925,7 @@ class DownloadManager {
 
       // Fallback: Try to construct from ID (legacy method)
       if (video && video.id) {
-        const fallbackUrl = `https://api.redfynix.com/api/v1/media-files/download/${video.id}`;
+        const fallbackUrl = `${baseUrl}api/v1/media-files/download/${video.id}`;
         console.log(
           `${this.logPrefix} Using fallback URL construction for video ${video.id}: ${fallbackUrl}`,
         );

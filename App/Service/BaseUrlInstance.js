@@ -1,8 +1,9 @@
 import NetInfo from '@react-native-community/netinfo';
 import axios from 'axios';
+import baseUrl from './baseUrl';
 
 const BaseUrlInstance = axios.create({
-  baseURL: 'https://api.redfynix.com/',
+  baseURL: baseUrl,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',

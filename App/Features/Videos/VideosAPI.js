@@ -4,6 +4,10 @@ const getVideos = async () => {
   try {
     // https://api.redfynix.com/api/v1/media-files/list
     const response = await BaseUrlInstance.get('api/v1/media-files/list');
+    const fullUrl = BaseUrlInstance.defaults.baseURL + response.config.url;
+
+    console.log('FULLFULL  url is ', fullUrl);
+    console.log('FULLFULL  data:', response.data);
 
     return response.data;
   } catch (error) {
