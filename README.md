@@ -1,10 +1,13 @@
 # Deshoali - React Native App
 
-A React Native application built with TypeScript, designed for cross-platform mobile development.
+Deshoali is a mobile learning app that shows a list of educational videos, downloads them to the device, and lets users watch them later without internet.
 
 ## 📋 Table of Contents
 
 - [Project Overview](#project-overview)
+- [What This App Does](#what-this-app-does)
+- [What Users Can Do](#what-users-can-do)
+- [Project Screenshots](#project-screenshots)
 - [Development Environment Requirements](#development-environment-requirements)
   - [Node Environment Layer](#node-environment-layer)
   - [React Native UI Layer](#react-native-ui-layer)
@@ -23,6 +26,30 @@ A React Native application built with TypeScript, designed for cross-platform mo
 - **React Native Version:** 0.81.4
 - **Language:** TypeScript
 - **Package Manager:** npm
+
+Deshoali is built for users who need simple access to awareness and training videos on a mobile device. The app downloads video content from a server, saves it locally, and makes it easy to play downloaded lessons again later. It is especially useful when internet access is unstable, because users can still open and watch the videos that are already stored on the phone.
+
+## 📖 What This App Does
+
+This app works like an offline-ready video library. When the device has internet, it can fetch the latest video list from the server and download new videos one by one. When the device is offline, the app still shows downloaded videos so the user can continue learning without interruption.
+
+The project currently focuses on educational content such as health, child marriage, menstruation, domestic violence, and similar awareness topics. The app presents those lessons in a simple list, so users do not need technical knowledge to use it.
+
+## ✅ What Users Can Do
+
+- See a list of available learning videos.
+- Search videos by name.
+- Download new videos to the phone.
+- Track download progress inside the app.
+- Open and watch downloaded videos anytime.
+- Use the app in offline mode for already-downloaded videos.
+- Get helpful messages for internet problems, storage problems, and download failures.
+
+## 📸 Project Screenshots
+
+| Video List | Video Details | Download Progress | Fullscreen Player |
+|---|---|---|---|
+| <img src="ProjectScreenShots/image1.jpeg" width="220" alt="Video list screen" /> | <img src="ProjectScreenShots/image2.jpeg" width="220" alt="Video details screen" /> | <img src="ProjectScreenShots/image3.jpeg" width="220" alt="Download progress modal" /> | <img src="ProjectScreenShots/image4.jpeg" width="220" alt="Fullscreen video player" /> |
 
 ## 🛠 Development Environment Requirements
 
