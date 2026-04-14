@@ -4,7 +4,7 @@ import { ThemeLightColors } from '../AppTheme';
 export default function FlashScreen() {
   return (
     <View style={styles.container}>
-      <Text style={styles.text}>FlashScreen</Text>
+      <Text style={styles.text}>Hello!</Text>
     </View>
   );
 }
